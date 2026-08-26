@@ -73,6 +73,28 @@ button {
   outline-offset: 2px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.install-button {
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.install-button:hover {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
 .icon-button {
   width: 2.5rem;
   height: 2.5rem;

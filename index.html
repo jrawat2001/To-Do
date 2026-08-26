@@ -4,7 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>To-Do</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="description" content="A simple to-do list with due dates, priorities, and filters. Tasks are stored on your device.">
+
+  <!-- Paths stay relative: the app is served from a /To-Do/ subpath on GitHub
+       Pages and must also run straight from the filesystem. -->
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+
+  <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14171c" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="To-Do">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <script>
     // Applied before first paint so the page never flashes the wrong theme.
     try {
@@ -20,9 +34,12 @@
   <div class="app">
     <header class="app-header">
       <h1>To-Do</h1>
-      <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme">
-        <span class="theme-icon" aria-hidden="true"></span>
-      </button>
+      <div class="header-actions">
+        <button id="install" class="install-button" type="button" hidden>Install</button>
+        <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme">
+          <span class="theme-icon" aria-hidden="true"></span>
+        </button>
+      </div>
     </header>
 
     <form id="add-form" class="add-form" autocomplete="off">
@@ -60,6 +77,42 @@
     </footer>
   </div>
 
-  <script src="app.js"></script>
+  <script src="./app.js"></script>
+  <script>
+    // Service workers need a real origin, so skip registration on file:// —
+    // opening index.html straight from disk still works, just without offline.
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./sw.js').catch(function () {
+          // Offline support is an enhancement; the app works regardless.
+        });
+      });
+    }
+
+    // Chrome and Edge fire this when the app is installable. Safari and Firefox
+    // never do, so the button simply stays hidden there.
+    (function () {
+      var button = document.getElementById('install');
+      var deferred = null;
+
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        deferred = event;
+        button.hidden = false;
+      });
+
+      button.addEventListener('click', function () {
+        if (!deferred) return;
+        deferred.prompt();
+        deferred = null;
+        button.hidden = true;
+      });
+
+      window.addEventListener('appinstalled', function () {
+        deferred = null;
+        button.hidden = true;
+      });
+    })();
+  </script>
 </body>
 </html>
