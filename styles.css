@@ -1,34 +1,94 @@
-:root {
-  --bg: #f4f5f7;
-  --surface: #ffffff;
-  --surface-alt: #f0f1f4;
-  --border: #dcdfe4;
-  --text: #1c1f24;
-  --text-muted: #6b7280;
-  --accent: #3b6cf6;
-  --accent-text: #ffffff;
-  --danger: #d93a44;
-  --priority-high: #d93a44;
-  --priority-medium: #d98324;
-  --priority-low: #4b9560;
-  --shadow: 0 1px 2px rgba(16, 20, 30, 0.06), 0 6px 20px rgba(16, 20, 30, 0.06);
-  --radius: 10px;
+/* ---------------------------------------------------------------------------
+   Ink & amber.
+
+   Palette is deliberately narrow: warm neutrals carry all the structure, and
+   exactly one accent (amber) marks what is interactive or imminent. Color is
+   never decorative here - if something is colored, it means something.
+   Priority is encoded in ink tones rather than a traffic-light scale, so the
+   only alarming color in the interface is a genuinely overdue task.
+--------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Fraunces';
+  src: url('./fonts/fraunces.woff2') format('woff2-variations'),
+       url('./fonts/fraunces.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
 }
 
-[data-theme="dark"] {
-  --bg: #14171c;
-  --surface: #1c2027;
-  --surface-alt: #242932;
-  --border: #333a45;
-  --text: #e8eaed;
-  --text-muted: #9aa2af;
-  --accent: #6f95ff;
-  --accent-text: #0f1218;
-  --danger: #ff6b74;
-  --priority-high: #ff6b74;
-  --priority-medium: #e6a44b;
-  --priority-low: #5fbf7f;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.28);
+:root {
+  /* Warm neutrals - the paper the app is printed on. */
+  --paper: #faf9f7;
+  --surface: #ffffff;
+  --surface-hover: #f4f2ee;
+  --line: #eae6e0;
+  --ink: #14110e;
+  --ink-2: #5c554e;
+  --ink-3: #8a827a;
+
+  /* The single accent. */
+  --accent: #b4690e;
+  --accent-soft: rgba(180, 105, 14, 0.1);
+
+  /* Reserved for one job: a task that is genuinely late. */
+  --overdue: #b4322c;
+
+  /* Solid buttons invert against the ground, so both themes need the pair. */
+  --solid-bg: #14110e;
+  --solid-fg: #faf9f7;
+
+  --shadow-card: 0 1px 2px rgba(28, 22, 15, 0.04), 0 8px 24px -12px rgba(28, 22, 15, 0.14);
+  --shadow-raised: 0 1px 2px rgba(28, 22, 15, 0.05), 0 12px 28px -14px rgba(28, 22, 15, 0.2);
+
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --display: 'Fraunces', ui-serif, Georgia, 'Times New Roman', serif;
+  --body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  color-scheme: light;
+}
+
+/* Explicit choice wins over the OS in both directions. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #131211;
+    --surface: #1a1917;
+    --surface-hover: #232120;
+    --line: #2b2825;
+    --ink: #f3efe9;
+    --ink-2: #a89f95;
+    --ink-3: #7b736b;
+    --accent: #e5a03f;
+    --accent-soft: rgba(229, 160, 63, 0.14);
+    --overdue: #e2706a;
+    --solid-bg: #f3efe9;
+    --solid-fg: #14110e;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 28px -14px rgba(0, 0, 0, 0.7);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #131211;
+  --surface: #1a1917;
+  --surface-hover: #232120;
+  --line: #2b2825;
+  --ink: #f3efe9;
+  --ink-2: #a89f95;
+  --ink-3: #7b736b;
+  --accent: #e5a03f;
+  --accent-soft: rgba(229, 160, 63, 0.14);
+  --overdue: #e2706a;
+  --solid-bg: #f3efe9;
+  --solid-fg: #14110e;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 28px -14px rgba(0, 0, 0, 0.7);
+
+  color-scheme: dark;
 }
 
 * {
@@ -37,30 +97,18 @@
 
 body {
   margin: 0;
-  padding: 2rem 1rem 4rem;
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding: 4rem 1.5rem 6rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 1rem;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 .app {
-  max-width: 44rem;
+  max-width: 36rem;
   margin: 0 auto;
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: 1.75rem;
-  letter-spacing: -0.02em;
 }
 
 button {
@@ -71,275 +119,481 @@ button {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Header ------------------------------------------------------------------ */
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-size: 2.25rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
 }
 
 .install-button {
-  min-height: 2.5rem;
-  padding: 0 0.9rem;
-  border: 1px solid var(--accent);
+  height: 2rem;
+  padding: 0 0.75rem;
+  border: none;
   border-radius: 999px;
-  background: transparent;
+  background: var(--accent-soft);
   color: var(--accent);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
+  transition: background-color 0.15s ease;
 }
 
 .install-button:hover {
   background: var(--accent);
-  color: var(--accent-text);
+  color: var(--solid-fg);
 }
 
 .icon-button {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2rem;
+  height: 2rem;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 50%;
-  background: var(--surface);
-  color: var(--text);
+  background: transparent;
+  color: var(--ink-2);
+  transition: background-color 0.15s ease;
 }
 
 .icon-button:hover {
-  background: var(--surface-alt);
+  background: var(--surface-hover);
 }
 
-.theme-icon::before {
-  content: "\1F319";
-  font-size: 1.05rem;
-  line-height: 1;
+/* The icon shows the theme you would switch *to*. */
+.icon {
+  display: block;
 }
 
-[data-theme="dark"] .theme-icon::before {
-  content: "\2600\FE0F";
+.icon-sun {
+  display: none;
 }
 
-/* Add form ---------------------------------------------------------------- */
+:root[data-theme="dark"] .icon-sun {
+  display: block;
+}
+
+:root[data-theme="dark"] .icon-moon {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .icon-sun {
+    display: block;
+  }
+
+  :root:not([data-theme="light"]) .icon-moon {
+    display: none;
+  }
+}
+
+/* Compose card ------------------------------------------------------------
+   The one raised surface in the app: the place where you put things in. */
 
 .add-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.75rem;
-  padding: 1rem;
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  margin-bottom: 1.25rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  margin-bottom: 2rem;
+  transition: box-shadow 0.2s ease;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+.add-form:focus-within {
+  box-shadow: var(--shadow-raised);
+}
+
+/* Labels stay for screen readers; the controls read clearly without them. */
+.field label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .field-text {
-  flex: 1 1 14rem;
   min-width: 0;
-}
-
-.field label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
 }
 
 .field input,
 .field select {
   font: inherit;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  color: var(--ink);
+  background: transparent;
+  border: none;
   border-radius: 8px;
-  padding: 0.5rem 0.65rem;
-  min-height: 2.5rem;
+  height: 2.5rem;
+  padding: 0 0.5rem;
+  width: 100%;
 }
 
-.field input:hover,
+.field-text input {
+  padding-left: 0;
+  font-size: 1.0625rem;
+}
+
+.field-text input::placeholder {
+  color: var(--ink-3);
+}
+
+.field select {
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.field input[type="date"] {
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  cursor: pointer;
+  width: auto;
+}
+
+.field input[type="date"]:hover,
 .field select:hover {
-  border-color: var(--text-muted);
+  background: var(--surface-hover);
 }
 
 .primary-button {
-  min-height: 2.5rem;
-  padding: 0 1.25rem;
-  border: 1px solid transparent;
+  height: 2.5rem;
+  padding: 0 1.125rem;
+  border: none;
   border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--solid-bg);
+  color: var(--solid-fg);
+  font-size: 0.9375rem;
   font-weight: 600;
+  transition: opacity 0.15s ease;
 }
 
 .primary-button:hover {
-  filter: brightness(1.08);
+  opacity: 0.85;
 }
 
-/* Filters ----------------------------------------------------------------- */
+/* Filters -----------------------------------------------------------------
+   Plain text tabs. The active one is marked by weight and a short amber rule,
+   not a filled pill - the list below should be the loudest thing on screen. */
 
 .filters {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: 1.25rem;
+  margin-bottom: 0.5rem;
+  padding: 0 0.25rem;
 }
 
 .filter {
-  padding: 0.4rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-muted);
-  font-size: 0.9rem;
+  position: relative;
+  padding: 0.375rem 0;
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.15s ease;
 }
 
 .filter:hover {
-  background: var(--surface-alt);
+  color: var(--ink-2);
 }
 
 .filter[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+  color: var(--ink);
   font-weight: 600;
 }
 
-/* Task list --------------------------------------------------------------- */
+.filter[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* Task list ---------------------------------------------------------------
+   Rows sit directly on the paper - no cards, no borders. Separation comes
+   from a hairline and from space, so the list scans as a single column. */
 
 .task-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
 }
 
 .task {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 0.9rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--priority-medium);
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 0.875rem 0.75rem;
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  transition: background-color 0.15s ease;
 }
 
-.task[data-priority="high"] { border-left-color: var(--priority-high); }
-.task[data-priority="medium"] { border-left-color: var(--priority-medium); }
-.task[data-priority="low"] { border-left-color: var(--priority-low); }
+.task + .task::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0.75rem;
+  right: 0.75rem;
+  height: 1px;
+  background: var(--line);
+}
+
+.task:hover,
+.task:focus-within {
+  background: var(--surface-hover);
+}
+
+/* The hairline would cut through the hover shape. */
+.task:hover::before,
+.task:focus-within::before,
+.task:hover + .task::before,
+.task:focus-within + .task::before {
+  opacity: 0;
+}
+
+/* Checkbox ---------------------------------------------------------------- */
 
 .task-checkbox {
-  width: 1.15rem;
-  height: 1.15rem;
+  appearance: none;
+  -webkit-appearance: none;
   flex: none;
-  accent-color: var(--accent);
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.125rem 0 0;
+  border: 1.5px solid var(--ink-3);
+  border-radius: 50%;
+  background: transparent;
   cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
+
+.task-checkbox:hover {
+  border-color: var(--accent);
+}
+
+.task-checkbox::after {
+  content: "";
+  width: 0.625rem;
+  height: 0.375rem;
+  border-left: 2px solid var(--solid-fg);
+  border-bottom: 2px solid var(--solid-fg);
+  transform: rotate(-45deg) translate(1px, -1px) scale(0.6);
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.task-checkbox:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.task-checkbox:checked::after {
+  opacity: 1;
+  transform: rotate(-45deg) translate(1px, -1px) scale(1);
+}
+
+/* Task body --------------------------------------------------------------- */
 
 .task-body {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.25rem;
+  padding-top: 0.0625rem;
 }
 
 .task-text {
   overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+/* Priority reads as weight, not as color - position in the list already
+   carries it, since the app sorts by priority. */
+.task[data-priority="high"] .task-text {
+  font-weight: 600;
 }
 
 .task.is-done .task-text {
+  color: var(--ink-3);
   text-decoration: line-through;
-  color: var(--text-muted);
+  text-decoration-color: var(--ink-3);
+  text-decoration-thickness: 1px;
 }
 
 .task-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.78rem;
-  color: var(--text-muted);
+  gap: 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
 }
+
+/* Badges ------------------------------------------------------------------
+   Unboxed: a dot plus a word. Only overdue and today earn a color. */
 
 .badge {
-  padding: 0.05rem 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  font-weight: 500;
 }
 
-.badge-priority[data-priority="high"] { color: var(--priority-high); border-color: currentColor; }
-.badge-priority[data-priority="medium"] { color: var(--priority-medium); border-color: currentColor; }
-.badge-priority[data-priority="low"] { color: var(--priority-low); border-color: currentColor; }
+.badge-priority::before {
+  content: "";
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.badge-priority[data-priority="high"] {
+  color: var(--ink-2);
+}
+
+.badge-priority[data-priority="medium"] {
+  color: var(--ink-3);
+}
+
+/* Low priority is the default state - a hollow dot, and no visual weight. */
+.badge-priority[data-priority="low"] {
+  color: var(--ink-3);
+}
+
+.badge-priority[data-priority="low"]::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
 
 .badge-overdue {
-  color: var(--danger);
-  border-color: currentColor;
+  color: var(--overdue);
+  font-weight: 600;
 }
 
 .badge-today {
   color: var(--accent);
-  border-color: currentColor;
+  font-weight: 600;
 }
+
+.task.is-done .task-meta,
+.task.is-done .badge-priority {
+  color: var(--ink-3);
+}
+
+/* Inline edit ------------------------------------------------------------- */
 
 .task-edit-input {
   font: inherit;
-  color: var(--text);
-  background: var(--surface-alt);
-  border: 1px solid var(--accent);
+  color: var(--ink);
+  background: var(--surface);
+  border: none;
+  box-shadow: 0 0 0 2px var(--accent);
   border-radius: 6px;
-  padding: 0.25rem 0.4rem;
-  width: 100%;
+  padding: 0.125rem 0.375rem;
+  margin: -0.125rem -0.375rem;
+  width: calc(100% + 0.75rem);
 }
+
+.task-edit-input:focus {
+  outline: none;
+}
+
+/* Row actions -------------------------------------------------------------
+   Kept out of the way until the row is hovered or focused. Never display:none,
+   so they stay reachable by keyboard. */
 
 .task-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.125rem;
   flex: none;
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+@media (hover: hover) {
+  .task-actions {
+    opacity: 0;
+  }
+
+  .task:hover .task-actions,
+  .task:focus-within .task-actions,
+  .task-actions:focus-within {
+    opacity: 1;
+  }
 }
 
 .task-action {
-  width: 2rem;
-  height: 2rem;
+  width: 1.75rem;
+  height: 1.75rem;
   display: grid;
   place-items: center;
-  border: 1px solid transparent;
+  border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--text-muted);
-  font-size: 1.05rem;
+  color: var(--ink-3);
+  font-size: 0.875rem;
   line-height: 1;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .task-action:hover {
-  background: var(--surface-alt);
-  border-color: var(--border);
-  color: var(--text);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
 }
 
 .task-action.delete:hover {
-  color: var(--danger);
+  color: var(--overdue);
 }
 
-/* Footer & empty state ---------------------------------------------------- */
+/* Empty state & footer ---------------------------------------------------- */
 
 .empty-state {
-  margin: 2rem 0;
+  margin: 3.5rem 0;
   text-align: center;
-  color: var(--text-muted);
+  font-family: var(--display);
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-size: 1.0625rem;
+  color: var(--ink-3);
+  text-wrap: balance;
 }
 
 .app-footer {
@@ -347,31 +601,67 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-top: 1.25rem;
-  padding-top: 0.9rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.875rem;
-  color: var(--text-muted);
+  margin-top: 1.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+.counter {
+  font-variant-numeric: tabular-nums;
 }
 
 .text-button {
   border: none;
   background: none;
-  color: var(--text-muted);
-  text-decoration: underline;
-  padding: 0.25rem;
+  color: var(--ink-3);
+  padding: 0.25rem 0;
+  font-size: 0.8125rem;
+  transition: color 0.15s ease;
 }
 
 .text-button:hover {
-  color: var(--danger);
+  color: var(--overdue);
 }
 
-@media (max-width: 30rem) {
+/* Responsive -------------------------------------------------------------- */
+
+@media (max-width: 34rem) {
   body {
-    padding: 1.25rem 0.75rem 3rem;
+    padding: 2.5rem 1rem 4rem;
   }
 
-  .add-form .primary-button {
-    flex: 1 1 100%;
+  .app-header h1 {
+    font-size: 1.875rem;
+  }
+
+  /* Stack the compose card so the text field gets a full line of its own. */
+  .add-form {
+    grid-template-columns: 1fr auto;
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .field-text {
+    grid-column: 1 / -1;
+  }
+
+  .field-text input {
+    padding-left: 0.5rem;
+  }
+
+  .primary-button {
+    grid-column: 2;
+  }
+
+  .field input[type="date"] {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

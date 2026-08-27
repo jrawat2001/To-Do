@@ -8,13 +8,14 @@
 
   <!-- Paths stay relative: the app is served from a /To-Do/ subpath on GitHub
        Pages and must also run straight from the filesystem. -->
+  <link rel="preload" href="./fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="./styles.css">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon-192.png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 
-  <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#14171c" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#faf9f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131211" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="To-Do">
@@ -37,7 +38,16 @@
       <div class="header-actions">
         <button id="install" class="install-button" type="button" hidden>Install</button>
         <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme">
-          <span class="theme-icon" aria-hidden="true"></span>
+          <svg class="icon icon-moon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"
+                  fill="none" stroke="currentColor" stroke-width="1.7"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg class="icon icon-sun" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 2.6v2.2M12 19.2v2.2M21.4 12h-2.2M4.8 12H2.6M18.6 5.4l-1.6 1.6M7 17l-1.6 1.6M18.6 18.6 17 17M7 7 5.4 5.4"
+                  fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
         </button>
       </div>
     </header>

@@ -1,7 +1,13 @@
 # To-Do
 
 A small, dependency-free to-do list that runs entirely in the browser. No build
-step, no server, no `npm install` — three files and a `localStorage` key.
+step, no server, no `npm install` — a handful of static files and a
+`localStorage` key.
+
+Warm neutrals carry the structure and a single amber accent marks what is
+interactive or imminent. Color is never decorative: priority reads as ink tone
+and weight, so the only alarming color in the interface is a genuinely overdue
+task. Headings are set in Fraunces; everything else uses the system UI font.
 
 **Live at:** https://jrawat2001.github.io/To-Do/
 
@@ -69,6 +75,7 @@ never leave the device they were typed on.
 | `manifest.webmanifest` | App name, icons, and colors used when installing |
 | `sw.js` | Service worker that caches the app for offline use |
 | `icons/` | App icons (192, 512, maskable, and Apple touch) |
+| `fonts/` | Fraunces, self-hosted so headings survive offline |
 
 When changing `index.html`, `styles.css`, or `app.js`, bump the `CACHE` version
 in `sw.js` — otherwise installed copies keep serving the old cached files.
