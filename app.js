@@ -62,7 +62,10 @@
     timerNote: document.getElementById('timer-note'),
     timerArc: document.getElementById('timer-arc'),
     timerPrimary: document.getElementById('timer-primary'),
-    timerReset: document.getElementById('timer-reset')
+    timerReset: document.getElementById('timer-reset'),
+    priorityDot: document.getElementById('priority-dot'),
+    tagInput: document.getElementById('task-tags'),
+    tagChips: document.getElementById('tag-chips')
   };
 
   var tasks = loadTasks();
@@ -71,6 +74,8 @@
   var standalone = loadStandalone();
   var filter = 'all';
   var editingId = null;
+  // Tags typed into the composer but not yet attached to a task.
+  var draftTags = [];
   var ticker = null;
   var baseTitle = document.title;
 
@@ -776,6 +781,64 @@
     }
   }
 
+  /* Composer -------------------------------------------------------------- */
+
+  function updatePriorityDot() {
+    els.priorityDot.dataset.priority = els.priority.value;
+  }
+
+  // Reuses normalizeTags so the draft obeys exactly the same rules as storage:
+  // if the list does not grow, the tag was empty, a duplicate, or over the cap.
+  function addDraftTag(raw) {
+    var next = normalizeTags(draftTags.concat([raw]));
+    var added = next.length > draftTags.length;
+    draftTags = next;
+    renderDraftTags();
+    return added;
+  }
+
+  function removeDraftTag(index) {
+    draftTags.splice(index, 1);
+    renderDraftTags();
+    els.tagInput.focus();
+  }
+
+  function clearDraftTags() {
+    draftTags = [];
+    els.tagInput.value = '';
+    renderDraftTags();
+  }
+
+  function renderDraftTags() {
+    els.tagChips.textContent = '';
+    els.tagChips.hidden = draftTags.length === 0;
+
+    draftTags.forEach(function (tag, index) {
+      var item = document.createElement('li');
+      item.className = 'tag-chip';
+
+      var label = document.createElement('span');
+      label.textContent = tag;
+      item.appendChild(label);
+
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'tag-chip-remove';
+      remove.textContent = '\u00d7';
+      remove.setAttribute('aria-label', 'Remove tag ' + tag);
+      remove.addEventListener('click', function () {
+        removeDraftTag(index);
+      });
+      item.appendChild(remove);
+
+      els.tagChips.appendChild(item);
+    });
+
+    var full = draftTags.length >= TAGS_PER_TASK;
+    els.tagInput.disabled = full;
+    els.tagInput.placeholder = full ? 'Tag limit reached' : 'Add a tag\u2026';
+  }
+
   /* Estimate learning ------------------------------------------------------
      One number drawn from history: how much longer things actually take than
      you think. Below a few sessions it stays quiet rather than guessing. */
@@ -1164,10 +1227,17 @@
     var text = els.text.value.trim();
     if (!text) return;
 
-    addTask(text, els.due.value, els.priority.value, Number(els.estimate.value) || null);
+    // A tag typed but not committed with Enter would otherwise be dropped.
+    addDraftTag(els.tagInput.value);
+
+    addTask(text, els.due.value, els.priority.value,
+      Number(els.estimate.value) || null, draftTags);
+
     els.form.reset();
     els.priority.value = 'medium';
     els.estimate.value = '';
+    clearDraftTags();
+    updatePriorityDot();
     els.text.focus();
   });
 
@@ -1280,6 +1350,31 @@
   });
 
   els.estimate.addEventListener('change', renderEstimateHint);
+  els.priority.addEventListener('change', updatePriorityDot);
+
+  els.tagInput.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' || event.key === ',') {
+      // Enter would otherwise submit the form before the tag is captured.
+      event.preventDefault();
+      if (addDraftTag(els.tagInput.value)) els.tagInput.value = '';
+      return;
+    }
+
+    // Backspace on an empty field peels off the last chip.
+    if (event.key === 'Backspace' && !els.tagInput.value && draftTags.length) {
+      event.preventDefault();
+      removeDraftTag(draftTags.length - 1);
+    }
+  });
+
+  // Pasting "one, two, three" should split rather than land as a single tag.
+  els.tagInput.addEventListener('paste', function (event) {
+    var text = (event.clipboardData || window.clipboardData).getData('text');
+    if (!text || text.indexOf(',') === -1) return;
+    event.preventDefault();
+    text.split(',').forEach(addDraftTag);
+    els.tagInput.value = '';
+  });
 
   els.themeToggle.addEventListener('click', function () {
     var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -1309,6 +1404,8 @@
     saveStandalone();
   }
 
+  updatePriorityDot();
+  renderDraftTags();
   render();
   renderStandalone();
   updateTitle();

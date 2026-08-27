@@ -70,8 +70,9 @@
         <label for="task-due">Due date</label>
         <input id="task-due" name="due" type="date">
       </div>
-      <div class="field">
+      <div class="field field-priority">
         <label for="task-priority">Priority</label>
+        <span class="priority-dot" id="priority-dot" data-priority="medium" aria-hidden="true"></span>
         <select id="task-priority" name="priority">
           <option value="low">Low</option>
           <option value="medium" selected>Medium</option>
@@ -91,7 +92,13 @@
           <option value="120">2h</option>
         </select>
       </div>
+      <div class="field field-tags">
+        <label for="task-tags">Tags</label>
+        <input id="task-tags" name="tags" type="text" placeholder="Add a tag…"
+               maxlength="24" autocomplete="off">
+      </div>
       <button type="submit" class="primary-button">Add</button>
+      <ul id="tag-chips" class="tag-chips" hidden></ul>
     </form>
 
     <p id="estimate-hint" class="estimate-hint" hidden></p>

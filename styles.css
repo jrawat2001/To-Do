@@ -4,8 +4,8 @@
    Palette is deliberately narrow: warm neutrals carry all the structure, and
    exactly one accent (amber) marks what is interactive or imminent. Color is
    never decorative here - if something is colored, it means something.
-   Priority is encoded in ink tones rather than a traffic-light scale, so the
-   only alarming color in the interface is a genuinely overdue task.
+   Priority carries a traffic-light scale (red / amber / green) by request; it
+   is kept to small marks - a dot and a 3px rule - so the rows stay calm.
 --------------------------------------------------------------------------- */
 
 @font-face {
@@ -33,6 +33,11 @@
 
   /* Reserved for one job: a task that is genuinely late. */
   --overdue: #b4322c;
+
+  /* Priority now reads as a traffic light, by request. */
+  --priority-high: #b4322c;
+  --priority-medium: #b4690e;
+  --priority-low: #3f7d52;
 
   /* Solid buttons invert against the ground, so both themes need the pair. */
   --solid-bg: #14110e;
@@ -63,6 +68,9 @@
     --accent: #e5a03f;
     --accent-soft: rgba(229, 160, 63, 0.14);
     --overdue: #e2706a;
+    --priority-high: #e2706a;
+    --priority-medium: #e5a03f;
+    --priority-low: #6fbf85;
     --solid-bg: #f3efe9;
     --solid-fg: #14110e;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
@@ -83,6 +91,9 @@
   --accent: #e5a03f;
   --accent-soft: rgba(229, 160, 63, 0.14);
   --overdue: #e2706a;
+  --priority-high: #e2706a;
+  --priority-medium: #e5a03f;
+  --priority-low: #6fbf85;
   --solid-bg: #f3efe9;
   --solid-fg: #14110e;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
@@ -219,7 +230,8 @@ button {
 
 .add-form {
   display: grid;
-  grid-template-columns: auto auto auto 1fr auto;
+  /* The tag field gets a floor so the estimate select cannot squeeze it out. */
+  grid-template-columns: auto auto auto minmax(9rem, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.5rem 0.625rem;
@@ -254,6 +266,52 @@ button {
 
 .add-form .primary-button {
   grid-column: 5;
+}
+
+.field-priority {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding-left: 0.5rem;
+}
+
+.field-priority select {
+  padding-left: 0;
+}
+
+.priority-dot {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--priority-medium);
+  transition: background-color 0.15s ease;
+}
+
+.priority-dot[data-priority="high"] { background: var(--priority-high); }
+.priority-dot[data-priority="medium"] { background: var(--priority-medium); }
+.priority-dot[data-priority="low"] { background: var(--priority-low); }
+
+.field-tags {
+  min-width: 0;
+}
+
+.field-tags input {
+  font-size: 0.875rem;
+  color: var(--ink);
+}
+
+.field-tags input::placeholder {
+  color: var(--ink-3);
+}
+
+.field-tags input:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.field-tags input:disabled {
+  cursor: not-allowed;
+  color: var(--ink-3);
 }
 
 .field input,
@@ -1276,5 +1334,63 @@ button {
   .timer-field input,
   .timer-colon {
     font-size: 3rem;
+  }
+}
+
+/* Tag chips ---------------------------------------------------------------
+   Draft tags, held in the composer until the task is added. */
+
+.tag-chips {
+  grid-column: 1 / -1;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0.25rem 0.5rem 0;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.5rem;
+  padding: 0 0.25rem 0 0.625rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tag-chip-remove {
+  width: 1.125rem;
+  height: 1.125rem;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 0.875rem;
+  line-height: 1;
+  opacity: 0.65;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.tag-chip-remove:hover {
+  opacity: 1;
+  background: var(--accent);
+  color: var(--solid-fg);
+}
+
+@media (max-width: 34rem) {
+  /* The tag field needs a full line of its own once the row wraps. */
+  .field-tags {
+    grid-column: 1 / -1;
+  }
+
+  .field-priority {
+    padding-left: 0.25rem;
   }
 }
