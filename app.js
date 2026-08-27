@@ -54,6 +54,8 @@
     exportDetail: document.getElementById('export-detail'),
     exportOptions: document.querySelector('.export-options'),
     exportText: document.getElementById('export-text'),
+    exportFallback: document.getElementById('export-fallback'),
+    exportFallbackSummary: document.getElementById('export-fallback-summary'),
     exportClose: document.getElementById('export-close'),
     focusReset: document.getElementById('focus-reset'),
     timerOpen: document.getElementById('timer-open'),
@@ -1036,27 +1038,44 @@
     return lines.map(icsFold).join('\r\n') + '\r\n';
   }
 
+  // Embedded viewers sandbox the page and drop downloads it starts, without
+  // raising anything catchable - the click simply does nothing. Being framed
+  // is the signal available up front, so use it rather than shipping a button
+  // that dies silently.
+  function downloadsBlocked() {
+    try {
+      return window.self !== window.top;
+    } catch (e) {
+      // Cross-origin parent: framed, and more restricted still.
+      return true;
+    }
+  }
+
   function downloadIcs(format) {
     var text = buildIcs(format);
     els.exportText.value = text;
 
     var name = format === 'calendar' ? 'to-do-calendar.ics' : 'to-do-reminders.ics';
-    try {
-      var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
-      var url = URL.createObjectURL(blob);
-      var link = document.createElement('a');
-      link.href = url;
-      link.download = name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      // Revoking immediately can cancel the download in some browsers.
-      setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
-    } catch (e) {
-      // Sandboxed viewers block page-initiated downloads; the textarea above
-      // is the way out, so open it rather than failing silently.
-      els.exportText.closest('details').open = true;
+
+    if (downloadsBlocked()) {
+      els.exportFallbackSummary.textContent =
+        'This preview blocks downloads \u2014 copy the text below into ' + name;
+      els.exportFallback.open = true;
+      els.exportText.focus();
+      els.exportText.select();
+      return;
     }
+
+    var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    // Revoking immediately can cancel the download in some browsers.
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
   }
 
   function renderExport() {
