@@ -1470,3 +1470,85 @@ button {
 .filter[aria-pressed="true"] .filter-count {
   color: var(--ink-2);
 }
+
+/* Export ------------------------------------------------------------------
+   Two shapes because no single one works everywhere. */
+
+.export-options {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.export-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.875rem 1rem;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--surface-hover);
+  color: var(--ink);
+  text-align: left;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.export-option:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.export-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.export-option-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.export-option-note {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.export-option:hover:not(:disabled) .export-option-name {
+  color: var(--accent);
+}
+
+.export-fallback {
+  margin-bottom: 1.25rem;
+  font-size: 0.8125rem;
+}
+
+.export-fallback summary {
+  cursor: pointer;
+  color: var(--ink-3);
+  padding: 0.25rem 0;
+}
+
+.export-fallback summary:hover {
+  color: var(--ink);
+}
+
+.export-fallback code {
+  font-size: 0.9em;
+  padding: 0.0625rem 0.25rem;
+  border-radius: 4px;
+  background: var(--surface-hover);
+}
+
+.export-text {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.625rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  resize: vertical;
+}

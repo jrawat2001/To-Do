@@ -96,6 +96,26 @@ inventing hours of focus that never happened. A running timer survives a
 reload; stopping early keeps the time you spent but logs nothing, since a
 half-finished task says nothing useful about the estimate.
 
+## Getting reminders on your phone
+
+The app has no server, so it cannot push anything anywhere — and no web app can
+write into Apple Reminders, which has no import API. What it can do is hand your
+tasks to an app that already owns notifications on your device.
+
+**Export** in the footer offers two files:
+
+| File | Format | Where it lands |
+| --- | --- | --- |
+| Reminders file | `VTODO` | macOS Reminders, Things, and most task apps. **iOS Reminders cannot import files.** |
+| Calendar file | `VEVENT` with a 9am alarm | Calendar on any platform — **this is the one that notifies you on iPhone** |
+
+Open the downloaded `.ics` and the receiving app takes over: the alert is then
+a native one, and fires whether or not this app is running.
+
+Completed tasks are left out. The export is a snapshot, not a live sync — re-run
+it after adding tasks. Tags travel as `CATEGORIES` and priority maps to the
+RFC 5545 scale (high 1, medium 5, low 9).
+
 ## Storage
 
 Tasks are saved to `localStorage` under `todo.tasks.v1`, the theme under

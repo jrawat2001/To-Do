@@ -49,6 +49,12 @@
     statsDialog: document.getElementById('stats'),
     statsBody: document.getElementById('stats-body'),
     statsClose: document.getElementById('stats-close'),
+    showExport: document.getElementById('show-export'),
+    exportDialog: document.getElementById('export'),
+    exportDetail: document.getElementById('export-detail'),
+    exportOptions: document.querySelector('.export-options'),
+    exportText: document.getElementById('export-text'),
+    exportClose: document.getElementById('export-close'),
     focusReset: document.getElementById('focus-reset'),
     timerOpen: document.getElementById('timer-open'),
     timerView: document.getElementById('timer-view'),
@@ -897,6 +903,175 @@
     renderEstimateHint();
   }
 
+  /* iCalendar export -------------------------------------------------------
+     The app has no server, so it cannot push anything anywhere. What it can do
+     is hand your tasks to an app that already owns reminders on your device,
+     in the one interchange format those apps agree on.
+
+     Two shapes, because no single one works everywhere: VTODO is what a task
+     really is and is what Reminders on macOS imports, but iOS Calendar - the
+     only thing an iPhone will open an .ics with - understands VEVENT alone. */
+
+  function icsEscape(text) {
+    return String(text)
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      .replace(/\r?\n/g, '\\n');
+  }
+
+  function utf8Length(codePoint) {
+    if (codePoint < 0x80) return 1;
+    if (codePoint < 0x800) return 2;
+    if (codePoint < 0x10000) return 3;
+    return 4;
+  }
+
+  // RFC 5545 caps a content line at 75 octets; longer lines continue on the
+  // next line prefixed with a space. Folding on octets, not characters, so a
+  // multi-byte character is never split down the middle.
+  function icsFold(line) {
+    var chars = Array.from(line);
+    var out = '';
+    var used = 0;
+    var limit = 74;
+
+    for (var i = 0; i < chars.length; i++) {
+      var size = utf8Length(chars[i].codePointAt(0));
+      if (used + size > limit) {
+        out += '\r\n ';
+        used = 1;
+        limit = 74;
+      }
+      out += chars[i];
+      used += size;
+    }
+
+    return out;
+  }
+
+  function icsStamp(date) {
+    return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  }
+
+  function icsDate(iso) {
+    return iso.replace(/-/g, '');
+  }
+
+  function icsDayAfter(iso) {
+    var parts = iso.split('-');
+    var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    date.setDate(date.getDate() + 1);
+    return icsDate(
+      date.getFullYear() + '-' +
+      String(date.getMonth() + 1).padStart(2, '0') + '-' +
+      String(date.getDate()).padStart(2, '0'));
+  }
+
+  // 9am local on the due date, expressed in UTC so the alarm lands at the same
+  // wall-clock moment wherever the importing device happens to be.
+  function icsAlarmStamp(iso) {
+    var parts = iso.split('-');
+    return icsStamp(new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 9, 0, 0));
+  }
+
+  var ICS_PRIORITY = { high: 1, medium: 5, low: 9 };
+
+  function exportableTasks(format) {
+    return tasks.filter(function (task) {
+      if (task.done) return false;
+      // An event has to happen on a day; a to-do does not.
+      return format === 'calendar' ? Boolean(task.dueDate) : true;
+    });
+  }
+
+  function buildIcs(format) {
+    var stamp = icsStamp(new Date());
+    var lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//To-Do//Export//EN',
+      'CALSCALE:GREGORIAN'
+    ];
+
+    exportableTasks(format).forEach(function (task) {
+      var uid = task.id + '@to-do.local';
+      var alarm = task.dueDate ? [
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        'TRIGGER;VALUE=DATE-TIME:' + icsAlarmStamp(task.dueDate),
+        'DESCRIPTION:' + icsEscape(task.text),
+        'END:VALARM'
+      ] : [];
+
+      if (format === 'calendar') {
+        lines.push(
+          'BEGIN:VEVENT',
+          'UID:' + uid,
+          'DTSTAMP:' + stamp,
+          'SUMMARY:' + icsEscape(task.text),
+          'DTSTART;VALUE=DATE:' + icsDate(task.dueDate),
+          'DTEND;VALUE=DATE:' + icsDayAfter(task.dueDate));
+        if (task.tags.length) lines.push('CATEGORIES:' + task.tags.map(icsEscape).join(','));
+        lines.push.apply(lines, alarm);
+        lines.push('END:VEVENT');
+        return;
+      }
+
+      lines.push(
+        'BEGIN:VTODO',
+        'UID:' + uid,
+        'DTSTAMP:' + stamp,
+        'SUMMARY:' + icsEscape(task.text),
+        'STATUS:NEEDS-ACTION',
+        'PRIORITY:' + ICS_PRIORITY[task.priority]);
+      if (task.dueDate) lines.push('DUE;VALUE=DATE:' + icsDate(task.dueDate));
+      if (task.tags.length) lines.push('CATEGORIES:' + task.tags.map(icsEscape).join(','));
+      lines.push.apply(lines, alarm);
+      lines.push('END:VTODO');
+    });
+
+    lines.push('END:VCALENDAR');
+
+    return lines.map(icsFold).join('\r\n') + '\r\n';
+  }
+
+  function downloadIcs(format) {
+    var text = buildIcs(format);
+    els.exportText.value = text;
+
+    var name = format === 'calendar' ? 'to-do-calendar.ics' : 'to-do-reminders.ics';
+    try {
+      var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement('a');
+      link.href = url;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      // Revoking immediately can cancel the download in some browsers.
+      setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+    } catch (e) {
+      // Sandboxed viewers block page-initiated downloads; the textarea above
+      // is the way out, so open it rather than failing silently.
+      els.exportText.closest('details').open = true;
+    }
+  }
+
+  function renderExport() {
+    var todos = exportableTasks('reminders').length;
+    var events = exportableTasks('calendar').length;
+
+    els.exportDetail.textContent = todos === 0
+      ? 'Nothing to export yet - every task is done.'
+      : todos + ' open task' + (todos === 1 ? '' : 's') + ', ' +
+        events + ' with a due date. Completed tasks are left out.';
+
+    els.exportOptions.querySelector('[data-format="calendar"]').disabled = events === 0;
+    els.exportText.value = buildIcs('calendar');
+  }
+
   /* Stats ------------------------------------------------------------------ */
 
   function renderStats() {
@@ -1060,6 +1235,7 @@
 
     els.clearDone.hidden = remaining === tasks.length;
     els.showStats.hidden = log.length === 0;
+    els.showExport.hidden = tasks.length === 0;
 
     renderFocus();
     renderEstimateHint();
@@ -1366,6 +1542,21 @@
   // Escape-closing the prompt should not silently discard the session.
   els.timesUp.addEventListener('cancel', function (event) {
     event.preventDefault();
+  });
+
+  els.showExport.addEventListener('click', function () {
+    renderExport();
+    openDialog(els.exportDialog);
+  });
+
+  els.exportOptions.addEventListener('click', function (event) {
+    var option = event.target.closest('[data-format]');
+    if (!option || option.disabled) return;
+    downloadIcs(option.dataset.format);
+  });
+
+  els.exportClose.addEventListener('click', function () {
+    closeDialog(els.exportDialog);
   });
 
   els.showStats.addEventListener('click', function () {

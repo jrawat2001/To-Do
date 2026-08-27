@@ -135,6 +135,7 @@
     <footer class="app-footer">
       <span id="counter" class="counter" aria-live="polite"></span>
       <span class="footer-actions">
+        <button type="button" id="show-export" class="text-button" hidden>Export</button>
         <button type="button" id="show-stats" class="text-button" hidden>Focus stats</button>
         <button type="button" id="clear-done" class="text-button" hidden>Clear completed</button>
       </span>
@@ -199,6 +200,36 @@
     <div class="timer-controls">
       <button type="button" id="timer-primary" class="timer-primary">Start</button>
       <button type="button" id="timer-reset" class="timer-secondary" hidden>Reset</button>
+    </div>
+  </dialog>
+
+  <dialog id="export" class="dialog dialog-wide">
+    <h2 class="dialog-title">Export</h2>
+    <p class="dialog-detail" id="export-detail"></p>
+
+    <div class="export-options">
+      <button type="button" class="export-option" data-format="reminders">
+        <span class="export-option-name">Reminders file</span>
+        <span class="export-option-note">Tasks as to-dos (VTODO). macOS Reminders, Things, and most
+          task apps import this. iOS Reminders cannot import files.</span>
+      </button>
+      <button type="button" class="export-option" data-format="calendar">
+        <span class="export-option-name">Calendar file</span>
+        <span class="export-option-note">Dated tasks as all-day events with a 9am alert. This is the
+          one that works on iPhone — it opens in Calendar, which then notifies you.</span>
+      </button>
+    </div>
+
+    <details class="export-fallback">
+      <summary>Download didn’t start?</summary>
+      <p class="dialog-detail">Some embedded viewers block downloads. Copy the text below into a
+        file ending in <code>.ics</code> and open that instead.</p>
+      <textarea id="export-text" class="export-text" readonly rows="8"
+                aria-label="Calendar file contents"></textarea>
+    </details>
+
+    <div class="dialog-actions">
+      <button type="button" id="export-close" class="primary-button">Close</button>
     </div>
   </dialog>
 
