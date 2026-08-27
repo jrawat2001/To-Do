@@ -37,8 +37,9 @@ python3 -m http.server 8000
 ## Features
 
 - **Add, complete, and delete** tasks.
-- **Inline editing** — click the ✎ button (or the pencil on any row). Enter saves,
-  Escape cancels, and clearing the text removes the task.
+- **Editing** — the ✎ on any row opens a dialog covering every field: title, due
+  date and time, priority, estimate and tags. Enter saves, Escape cancels, and
+  clearing the title still deletes the task.
 - **Filters** — All / Active / Done, with a live "N items left" counter and a
   "Clear completed" action that appears only when something is done.
 - **Due dates** — a pill on each task: red once overdue, amber for today, muted
@@ -57,6 +58,23 @@ python3 -m http.server 8000
   visible focus rings, and a live-updating counter.
 - **Works offline** — a service worker caches the app, so an installed copy opens
   with no connection.
+
+## Due times and escalation
+
+A due date says which day; a **due time** says which moment. Give a task both and
+it escalates once that moment passes:
+
+- it sorts and displays as **high priority**, whatever priority you set;
+- the row turns red and its title goes bold;
+- a **+15m** button appears on the row for a one-tap reprieve.
+
+Escalation is derived, never written to the task, so pushing the time back
+restores exactly the priority you originally chose. The edit dialog has larger
+pushes — 15m, 1h, 3h, 1 day — and pushing from a moment already gone counts
+from now rather than from the missed time.
+
+The page checks every 15 seconds, so a task escalates while you are looking at
+it, not only after a reload.
 
 ## Focus Mode
 
@@ -111,6 +129,9 @@ tasks to an app that already owns notifications on your device.
 
 Open the downloaded `.ics` and the receiving app takes over: the alert is then
 a native one, and fires whether or not this app is running.
+
+A task with a due time exports as a real one-hour slot at that time with the
+alarm on it; a date-only task exports as an all-day entry alerting at 9am.
 
 Completed tasks are left out. The export is a snapshot, not a live sync — re-run
 it after adding tasks. Tags travel as `CATEGORIES` and priority maps to the

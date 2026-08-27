@@ -66,9 +66,14 @@
         <label for="task-text">Task</label>
         <input id="task-text" name="text" type="text" placeholder="What needs doing?" maxlength="200" required>
       </div>
+      <div class="add-controls">
       <div class="field">
         <label for="task-due">Due date</label>
         <input id="task-due" name="due" type="date">
+      </div>
+      <div class="field">
+        <label for="task-time">Due time</label>
+        <input id="task-time" name="time" type="time">
       </div>
       <div class="field field-priority">
         <label for="task-priority">Priority</label>
@@ -98,6 +103,7 @@
                maxlength="24" autocomplete="off">
       </div>
       <button type="submit" class="primary-button">Add</button>
+      </div>
       <ul id="tag-chips" class="tag-chips" hidden></ul>
     </form>
 
@@ -201,6 +207,77 @@
       <button type="button" id="timer-primary" class="timer-primary">Start</button>
       <button type="button" id="timer-reset" class="timer-secondary" hidden>Reset</button>
     </div>
+  </dialog>
+
+  <dialog id="edit" class="dialog dialog-wide">
+    <h2 class="dialog-title">Edit task</h2>
+    <form id="edit-form" class="edit-form" autocomplete="off">
+      <label class="edit-field">
+        <span class="edit-label">Task</span>
+        <input id="edit-text" type="text" maxlength="200" required>
+      </label>
+
+      <div class="edit-row">
+        <label class="edit-field">
+          <span class="edit-label">Due date</span>
+          <input id="edit-due" type="date">
+        </label>
+        <label class="edit-field">
+          <span class="edit-label">Due time</span>
+          <input id="edit-time" type="time">
+        </label>
+      </div>
+
+      <p class="edit-note" id="edit-time-note">A time makes the task escalate to high priority once it passes.</p>
+
+      <div class="edit-push" id="edit-push" hidden>
+        <span class="edit-label">Push it back</span>
+        <div class="edit-push-buttons">
+          <button type="button" data-push="15">15m</button>
+          <button type="button" data-push="60">1h</button>
+          <button type="button" data-push="180">3h</button>
+          <button type="button" data-push="1440">1 day</button>
+        </div>
+      </div>
+
+      <div class="edit-row">
+        <label class="edit-field">
+          <span class="edit-label">Priority</span>
+          <span class="edit-priority">
+            <span class="priority-dot" id="edit-priority-dot" data-priority="medium" aria-hidden="true"></span>
+            <select id="edit-priority">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </span>
+        </label>
+        <label class="edit-field">
+          <span class="edit-label">Time estimate</span>
+          <select id="edit-estimate">
+          <option value="">No estimate</option>
+          <option value="5">5m</option>
+          <option value="15">15m</option>
+          <option value="25">25m</option>
+          <option value="45">45m</option>
+          <option value="60">1h</option>
+          <option value="90">1h 30m</option>
+          <option value="120">2h</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="edit-field">
+        <label class="edit-label" for="edit-tags">Tags</label>
+        <input id="edit-tags" type="text" placeholder="Add a tag…" maxlength="24">
+        <ul id="edit-chips" class="tag-chips tag-chips-standalone" hidden></ul>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="submit" class="primary-button">Save</button>
+        <button type="button" id="edit-cancel" class="secondary-button">Cancel</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="export" class="dialog dialog-wide">

@@ -73,7 +73,20 @@
     timerReset: document.getElementById('timer-reset'),
     priorityDot: document.getElementById('priority-dot'),
     tagInput: document.getElementById('task-tags'),
-    tagChips: document.getElementById('tag-chips')
+    tagChips: document.getElementById('tag-chips'),
+    time: document.getElementById('task-time'),
+    editDialog: document.getElementById('edit'),
+    editForm: document.getElementById('edit-form'),
+    editText: document.getElementById('edit-text'),
+    editDue: document.getElementById('edit-due'),
+    editTime: document.getElementById('edit-time'),
+    editPriority: document.getElementById('edit-priority'),
+    editPriorityDot: document.getElementById('edit-priority-dot'),
+    editEstimate: document.getElementById('edit-estimate'),
+    editTags: document.getElementById('edit-tags'),
+    editChips: document.getElementById('edit-chips'),
+    editPush: document.getElementById('edit-push'),
+    editCancel: document.getElementById('edit-cancel')
   };
 
   var tasks = loadTasks();
@@ -84,6 +97,9 @@
   var editingId = null;
   // Tags typed into the composer but not yet attached to a task.
   var draftTags = [];
+  // The same, for the edit dialog, plus the task it is open on.
+  var editTags = [];
+  var lastEscalation = '';
   var ticker = null;
   var baseTitle = document.title;
 
@@ -119,6 +135,7 @@
       text: task.text,
       done: task.done === true,
       dueDate: normalizeDueDate(task.dueDate),
+      dueTime: normalizeDueTime(task.dueTime, task.dueDate),
       priority: PRIORITY_RANK[task.priority] === undefined ? 'medium' : task.priority,
       createdAt: typeof task.createdAt === 'number' ? task.createdAt : Date.now(),
       estimateMin: typeof task.estimateMin === 'number' && task.estimateMin > 0 ? task.estimateMin : null,
@@ -135,6 +152,14 @@
   function normalizeDueDate(value) {
     if (typeof value !== 'string') return null;
     return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  }
+
+  // "HH:MM", and only meaningful alongside a date - a time with no day cannot
+  // say when it has passed.
+  function normalizeDueTime(value, dueDate) {
+    if (typeof value !== 'string') return null;
+    if (!normalizeDueDate(dueDate)) return null;
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : null;
   }
 
   // Trimmed, de-duplicated case-insensitively, and capped. Order is preserved
@@ -284,12 +309,13 @@
 
   /* Mutations ------------------------------------------------------------- */
 
-  function addTask(text, dueDate, priority, estimateMin, tags) {
+  function addTask(text, dueDate, priority, estimateMin, tags, dueTime) {
     tasks.push({
       id: createId(),
       text: text,
       done: false,
       dueDate: normalizeDueDate(dueDate),
+      dueTime: normalizeDueTime(dueTime, dueDate),
       priority: priority,
       createdAt: Date.now(),
       estimateMin: estimateMin || null,
@@ -375,6 +401,9 @@
 
   function commit() {
     saveTasks();
+    lastEscalation = tasks.map(function (task) {
+      return isEscalated(task) ? '1' : '0';
+    }).join('');
     render();
   }
 
@@ -810,29 +839,7 @@
   }
 
   function renderDraftTags() {
-    els.tagChips.textContent = '';
-    els.tagChips.hidden = draftTags.length === 0;
-
-    draftTags.forEach(function (tag, index) {
-      var item = document.createElement('li');
-      item.className = 'tag-chip';
-
-      var label = document.createElement('span');
-      label.textContent = tag;
-      item.appendChild(label);
-
-      var remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'tag-chip-remove';
-      remove.textContent = '\u00d7';
-      remove.setAttribute('aria-label', 'Remove tag ' + tag);
-      remove.addEventListener('click', function () {
-        removeDraftTag(index);
-      });
-      item.appendChild(remove);
-
-      els.tagChips.appendChild(item);
-    });
+    renderChips(els.tagChips, draftTags, removeDraftTag);
 
     var full = draftTags.length >= TAGS_PER_TASK;
     els.tagInput.disabled = full;
@@ -970,10 +977,12 @@
       String(date.getDate()).padStart(2, '0'));
   }
 
-  // 9am local on the due date, expressed in UTC so the alarm lands at the same
-  // wall-clock moment wherever the importing device happens to be.
-  function icsAlarmStamp(iso) {
-    var parts = iso.split('-');
+  // The task's own time when it has one, otherwise 9am local on the due date.
+  // Written in UTC so it lands at the same real moment wherever it is imported.
+  function icsAlarmStamp(task) {
+    var at = taskDueAt(task);
+    if (at !== null) return icsStamp(new Date(at));
+    var parts = task.dueDate.split('-');
     return icsStamp(new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 9, 0, 0));
   }
 
@@ -1001,19 +1010,30 @@
       var alarm = task.dueDate ? [
         'BEGIN:VALARM',
         'ACTION:DISPLAY',
-        'TRIGGER;VALUE=DATE-TIME:' + icsAlarmStamp(task.dueDate),
+        'TRIGGER;VALUE=DATE-TIME:' + icsAlarmStamp(task),
         'DESCRIPTION:' + icsEscape(task.text),
         'END:VALARM'
       ] : [];
+
+      // A task with a time is a moment, not a day: give it a real one-hour
+      // slot so the calendar shows it where it belongs.
+      var at = taskDueAt(task);
 
       if (format === 'calendar') {
         lines.push(
           'BEGIN:VEVENT',
           'UID:' + uid,
           'DTSTAMP:' + stamp,
-          'SUMMARY:' + icsEscape(task.text),
-          'DTSTART;VALUE=DATE:' + icsDate(task.dueDate),
-          'DTEND;VALUE=DATE:' + icsDayAfter(task.dueDate));
+          'SUMMARY:' + icsEscape(task.text));
+        if (at !== null) {
+          lines.push(
+            'DTSTART:' + icsStamp(new Date(at)),
+            'DTEND:' + icsStamp(new Date(at + 3600000)));
+        } else {
+          lines.push(
+            'DTSTART;VALUE=DATE:' + icsDate(task.dueDate),
+            'DTEND;VALUE=DATE:' + icsDayAfter(task.dueDate));
+        }
         if (task.tags.length) lines.push('CATEGORIES:' + task.tags.map(icsEscape).join(','));
         lines.push.apply(lines, alarm);
         lines.push('END:VEVENT');
@@ -1027,7 +1047,8 @@
         'SUMMARY:' + icsEscape(task.text),
         'STATUS:NEEDS-ACTION',
         'PRIORITY:' + ICS_PRIORITY[task.priority]);
-      if (task.dueDate) lines.push('DUE;VALUE=DATE:' + icsDate(task.dueDate));
+      if (at !== null) lines.push('DUE:' + icsStamp(new Date(at)));
+      else if (task.dueDate) lines.push('DUE;VALUE=DATE:' + icsDate(task.dueDate));
       if (task.tags.length) lines.push('CATEGORIES:' + task.tags.map(icsEscape).join(','));
       lines.push.apply(lines, alarm);
       lines.push('END:VTODO');
@@ -1200,6 +1221,56 @@
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
 
+  /* Escalation ------------------------------------------------------------
+     A task given a time is a commitment to a moment, not just a day. Once that
+     moment passes the task behaves as high priority - it sorts to the top and
+     the row is marked - without overwriting the priority the user chose, so
+     pushing the time back restores exactly what was there before. */
+
+  function taskDueAt(task) {
+    if (!task.dueDate || !task.dueTime) return null;
+    var d = task.dueDate.split('-');
+    var t = task.dueTime.split(':');
+    return new Date(Number(d[0]), Number(d[1]) - 1, Number(d[2]),
+      Number(t[0]), Number(t[1]), 0, 0).getTime();
+  }
+
+  function isEscalated(task) {
+    if (task.done) return false;
+    var at = taskDueAt(task);
+    return at !== null && Date.now() >= at;
+  }
+
+  // The priority the app acts on, which may outrank the one that was set.
+  function effectivePriority(task) {
+    return isEscalated(task) ? 'high' : task.priority;
+  }
+
+  // Moves a task's due moment forward, carrying the date over midnight.
+  function pushTask(id, minutes) {
+    var task = findTask(id);
+    if (!task) return;
+    var at = taskDueAt(task);
+    // Push from now when the moment has already gone by, so "+15m" means
+    // fifteen minutes from now rather than fifteen past a time long dead.
+    var base = at === null || at < Date.now() ? Date.now() : at;
+    var next = new Date(base + minutes * 60000);
+
+    task.dueDate = next.getFullYear() + '-' +
+      String(next.getMonth() + 1).padStart(2, '0') + '-' +
+      String(next.getDate()).padStart(2, '0');
+    task.dueTime = String(next.getHours()).padStart(2, '0') + ':' +
+      String(next.getMinutes()).padStart(2, '0');
+
+    commit();
+  }
+
+  function formatClockTime(time) {
+    var parts = time.split(':');
+    var date = new Date(2000, 0, 1, Number(parts[0]), Number(parts[1]));
+    return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+
   // A completed task is never "overdue" - finishing it late is not a warning.
   function dueTone(task) {
     var now = today();
@@ -1220,7 +1291,7 @@
     return selected.sort(function (a, b) {
       if (a.done !== b.done) return a.done ? 1 : -1;
 
-      var rank = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+      var rank = PRIORITY_RANK[effectivePriority(a)] - PRIORITY_RANK[effectivePriority(b)];
       if (rank !== 0) return rank;
 
       // Undated tasks sort after dated ones.
@@ -1271,13 +1342,6 @@
       if (count) count.textContent = '(' + counts[button.dataset.filter] + ')';
     });
 
-    if (editingId) {
-      var input = els.list.querySelector('.task-edit-input');
-      if (input) {
-        input.focus();
-        input.setSelectionRange(input.value.length, input.value.length);
-      }
-    }
   }
 
   function emptyMessage() {
@@ -1290,9 +1354,11 @@
   function renderTask(task) {
     var item = document.createElement('li');
     item.className = 'task' + (task.done ? ' is-done' : '') +
-      (timer && timer.taskId === task.id ? ' is-focused' : '');
+      (timer && timer.taskId === task.id ? ' is-focused' : '') +
+      (isEscalated(task) ? ' is-escalated' : '');
     item.dataset.id = task.id;
-    item.dataset.priority = task.priority;
+    // The border follows the priority the app is acting on, not the stored one.
+    item.dataset.priority = effectivePriority(task);
 
     var checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -1305,19 +1371,15 @@
     var body = document.createElement('div');
     body.className = 'task-body';
 
-    if (editingId === task.id) {
-      body.appendChild(renderEditInput(task));
-    } else {
-      var text = document.createElement('span');
-      text.className = 'task-text';
-      text.textContent = task.text;
-      body.appendChild(text);
+    var text = document.createElement('span');
+    text.className = 'task-text';
+    text.textContent = task.text;
+    body.appendChild(text);
 
-      var meta = renderMeta(task);
-      if (meta) body.appendChild(meta);
+    var meta = renderMeta(task);
+    if (meta) body.appendChild(meta);
 
-      if (task.tags.length) body.appendChild(renderTags(task));
-    }
+    if (task.tags.length) body.appendChild(renderTags(task));
 
     item.appendChild(body);
     item.appendChild(renderActions(task));
@@ -1330,8 +1392,9 @@
 
     var priority = document.createElement('span');
     priority.className = 'badge badge-priority';
-    priority.dataset.priority = task.priority;
-    priority.textContent = PRIORITY_LABEL[task.priority];
+    var shown = effectivePriority(task);
+    priority.dataset.priority = shown;
+    priority.textContent = PRIORITY_LABEL[shown];
     meta.appendChild(priority);
 
     if (task.estimateMin) {
@@ -1347,10 +1410,11 @@
     }
 
     if (task.dueDate) {
-      var tone = dueTone(task);
-      var due = makeBadge('badge-due badge-' + tone,
-        tone === 'today' ? 'Today' : formatShortDate(task.dueDate));
-      meta.appendChild(due);
+      var tone = isEscalated(task) ? 'overdue' : dueTone(task);
+      var label = tone === 'today' || (isEscalated(task) && task.dueDate === today())
+        ? 'Today' : formatShortDate(task.dueDate);
+      if (task.dueTime) label += ' \u00b7 ' + formatClockTime(task.dueTime);
+      meta.appendChild(makeBadge('badge-due badge-' + tone, label));
     }
 
     return meta;
@@ -1378,35 +1442,128 @@
     return badge;
   }
 
-  function renderEditInput(task) {
-    var input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'task-edit-input';
-    input.value = task.text;
-    input.maxLength = 200;
-    input.setAttribute('aria-label', 'Edit task');
+  /* Edit dialog ------------------------------------------------------------
+     Every field a task has, in one place. The row used to offer an inline
+     rename only, which left estimate, priority, dates and tags unreachable
+     after creation. */
 
-    input.addEventListener('keydown', function (event) {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        var value = input.value;
-        editingId = null;
-        editTask(task.id, value);
-      } else if (event.key === 'Escape') {
-        event.preventDefault();
-        editingId = null;
-        render();
-      }
-    });
+  function openEdit(id) {
+    var task = findTask(id);
+    if (!task) return;
 
-    input.addEventListener('blur', function () {
-      if (editingId !== task.id) return;
-      var value = input.value;
+    editingId = id;
+    els.editText.value = task.text;
+    els.editDue.value = task.dueDate || '';
+    els.editTime.value = task.dueTime || '';
+    els.editPriority.value = task.priority;
+    els.editEstimate.value = task.estimateMin ? String(task.estimateMin) : '';
+    editTags = task.tags.slice();
+
+    renderEditDialog();
+    openDialog(els.editDialog);
+    els.editText.focus();
+    els.editText.select();
+  }
+
+  function renderEditDialog() {
+    els.editPriorityDot.dataset.priority = els.editPriority.value;
+    // Pushing is only meaningful once there is a moment to push.
+    els.editPush.hidden = !(els.editDue.value && els.editTime.value);
+    renderChips(els.editChips, editTags, removeEditTag);
+
+    var full = editTags.length >= TAGS_PER_TASK;
+    els.editTags.disabled = full;
+    els.editTags.placeholder = full ? 'Tag limit reached' : 'Add a tag\u2026';
+  }
+
+  function addEditTag(raw) {
+    var next = normalizeTags(editTags.concat([raw]));
+    var added = next.length > editTags.length;
+    editTags = next;
+    renderEditDialog();
+    return added;
+  }
+
+  function removeEditTag(index) {
+    editTags.splice(index, 1);
+    renderEditDialog();
+    els.editTags.focus();
+  }
+
+  function saveEdit() {
+    var task = findTask(editingId);
+    if (!task) return;
+
+    var text = els.editText.value.trim();
+    // An emptied title still means "remove this", as it did inline.
+    if (!text) {
+      closeDialog(els.editDialog);
       editingId = null;
-      editTask(task.id, value);
-    });
+      deleteTask(task.id);
+      return;
+    }
 
-    return input;
+    task.text = text;
+    task.dueDate = normalizeDueDate(els.editDue.value);
+    task.dueTime = normalizeDueTime(els.editTime.value, els.editDue.value);
+    task.priority = PRIORITY_RANK[els.editPriority.value] === undefined
+      ? task.priority : els.editPriority.value;
+    task.estimateMin = Number(els.editEstimate.value) || null;
+    task.tags = normalizeTags(editTags);
+
+    // A dropped estimate cannot leave a countdown running against nothing.
+    if (!task.estimateMin && timer && timer.taskId === task.id) endFocusSession();
+
+    closeDialog(els.editDialog);
+    editingId = null;
+    commit();
+  }
+
+  // Pushes from the dialog's own fields, so it composes with unsaved edits.
+  function pushEditTime(minutes) {
+    if (!els.editDue.value || !els.editTime.value) return;
+
+    var d = els.editDue.value.split('-');
+    var t = els.editTime.value.split(':');
+    var at = new Date(Number(d[0]), Number(d[1]) - 1, Number(d[2]),
+      Number(t[0]), Number(t[1])).getTime();
+    var base = at < Date.now() ? Date.now() : at;
+    var next = new Date(base + minutes * 60000);
+
+    els.editDue.value = next.getFullYear() + '-' +
+      String(next.getMonth() + 1).padStart(2, '0') + '-' +
+      String(next.getDate()).padStart(2, '0');
+    els.editTime.value = String(next.getHours()).padStart(2, '0') + ':' +
+      String(next.getMinutes()).padStart(2, '0');
+
+    renderEditDialog();
+  }
+
+  // Shared by the composer and the edit dialog.
+  function renderChips(container, list, onRemove) {
+    container.textContent = '';
+    container.hidden = list.length === 0;
+
+    list.forEach(function (tag, index) {
+      var item = document.createElement('li');
+      item.className = 'tag-chip';
+
+      var label = document.createElement('span');
+      label.textContent = tag;
+      item.appendChild(label);
+
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'tag-chip-remove';
+      remove.textContent = '\u00d7';
+      remove.setAttribute('aria-label', 'Remove tag ' + tag);
+      remove.addEventListener('click', function () {
+        onRemove(index);
+      });
+      item.appendChild(remove);
+
+      container.appendChild(item);
+    });
   }
 
   function renderActions(task) {
@@ -1422,6 +1579,16 @@
       focus.textContent = '▶';
       focus.setAttribute('aria-label', 'Start ' + formatMinutes(task.estimateMin) + ' focus timer: ' + task.text);
       actions.appendChild(focus);
+    }
+
+    if (isEscalated(task)) {
+      var push = document.createElement('button');
+      push.type = 'button';
+      push.className = 'task-action task-action-wide';
+      push.dataset.action = 'push';
+      push.textContent = '+15m';
+      push.setAttribute('aria-label', 'Push back 15 minutes: ' + task.text);
+      actions.appendChild(push);
     }
 
     var edit = document.createElement('button');
@@ -1454,11 +1621,12 @@
     addDraftTag(els.tagInput.value);
 
     addTask(text, els.due.value, els.priority.value,
-      Number(els.estimate.value) || null, draftTags);
+      Number(els.estimate.value) || null, draftTags, els.time.value);
 
     els.form.reset();
     els.priority.value = 'medium';
     els.estimate.value = '';
+    els.time.value = '';
     clearDraftTags();
     updatePriorityDot();
     els.text.focus();
@@ -1491,8 +1659,9 @@
     } else if (control.dataset.action === 'toggle') {
       toggleTask(id);
     } else if (control.dataset.action === 'edit') {
-      editingId = id;
-      render();
+      openEdit(id);
+    } else if (control.dataset.action === 'push') {
+      pushTask(id, 15);
     } else if (control.dataset.action === 'delete') {
       if (editingId === id) editingId = null;
       deleteTask(id);
@@ -1588,6 +1757,42 @@
   });
 
   els.estimate.addEventListener('change', renderEstimateHint);
+
+  els.editForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    saveEdit();
+  });
+
+  els.editCancel.addEventListener('click', function () {
+    closeDialog(els.editDialog);
+    editingId = null;
+  });
+
+  els.editPriority.addEventListener('change', renderEditDialog);
+  els.editDue.addEventListener('change', renderEditDialog);
+  els.editTime.addEventListener('change', renderEditDialog);
+
+  els.editPush.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-push]');
+    if (button) pushEditTime(Number(button.dataset.push));
+  });
+
+  els.editTags.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' || event.key === ',') {
+      // Enter in the tag field must not submit the whole dialog.
+      event.preventDefault();
+      if (addEditTag(els.editTags.value)) els.editTags.value = '';
+      return;
+    }
+    if (event.key === 'Backspace' && !els.editTags.value && editTags.length) {
+      event.preventDefault();
+      removeEditTag(editTags.length - 1);
+    }
+  });
+
+  els.editDialog.addEventListener('close', function () {
+    editingId = null;
+  });
   els.priority.addEventListener('change', updatePriorityDot);
 
   els.tagInput.addEventListener('keydown', function (event) {
@@ -1647,6 +1852,23 @@
   render();
   renderStandalone();
   updateTitle();
+
+  // Escalation turns on a clock rather than on an interaction, so poll for the
+  // moment it flips. Re-rendering only when the set of escalated tasks actually
+  // changes keeps this from churning the list every few seconds.
+  function escalationSignature() {
+    return tasks.map(function (task) {
+      return isEscalated(task) ? '1' : '0';
+    }).join('');
+  }
+
+  lastEscalation = escalationSignature();
+  setInterval(function () {
+    var next = escalationSignature();
+    if (next === lastEscalation) return;
+    lastEscalation = next;
+    render();
+  }, 15000);
 
   if (anythingRunning()) startTicker();
   if (standalone && standalone.expired) openTimerView();
