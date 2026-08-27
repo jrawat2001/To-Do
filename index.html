@@ -37,6 +37,15 @@
       <h1>To-Do</h1>
       <div class="header-actions">
         <button id="install" class="install-button" type="button" hidden>Install</button>
+        <button id="timer-open" class="icon-button" type="button" aria-label="Open timer">
+          <svg class="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <circle cx="12" cy="13.5" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 9.5v4l2.5 1.75M9.5 2.5h5M12 2.5v2.2"
+                  fill="none" stroke="currentColor" stroke-width="1.7"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="icon-dot" aria-hidden="true"></span>
+        </button>
         <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme">
           <svg class="icon icon-moon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
             <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"
@@ -102,6 +111,7 @@
       </div>
       <div class="focus-controls">
         <button type="button" id="focus-toggle" class="focus-button">Pause</button>
+        <button type="button" id="focus-reset" class="focus-button focus-button-quiet">Reset</button>
         <button type="button" id="focus-stop" class="focus-button focus-button-quiet">Stop</button>
       </div>
     </section>
@@ -134,6 +144,55 @@
       <button type="button" class="secondary-button" data-extend="10">+10 min</button>
     </div>
     <button type="button" id="times-up-dismiss" class="text-button dialog-dismiss">Stop without finishing</button>
+  </dialog>
+
+  <dialog id="timer-view" class="timer-view" aria-label="Timer">
+    <button type="button" id="timer-close" class="timer-close" aria-label="Close timer">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor"
+              stroke-width="1.7" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <div class="timer-stage">
+      <div class="timer-setup" id="timer-setup">
+        <div class="timer-fields">
+          <label class="timer-field">
+            <input id="timer-hours" type="number" min="0" max="23" step="1"
+                   inputmode="numeric" value="0" aria-label="Hours">
+            <span>hours</span>
+          </label>
+          <span class="timer-colon" aria-hidden="true">:</span>
+          <label class="timer-field">
+            <input id="timer-minutes" type="number" min="0" max="59" step="1"
+                   inputmode="numeric" value="25" aria-label="Minutes">
+            <span>minutes</span>
+          </label>
+        </div>
+        <div class="timer-presets">
+          <button type="button" data-preset="5">5m</button>
+          <button type="button" data-preset="10">10m</button>
+          <button type="button" data-preset="25">25m</button>
+          <button type="button" data-preset="45">45m</button>
+          <button type="button" data-preset="60">1h</button>
+        </div>
+      </div>
+
+      <div class="timer-live" id="timer-live" hidden>
+        <svg class="timer-ring" viewBox="0 0 240 240" aria-hidden="true">
+          <circle class="timer-track" cx="120" cy="120" r="112" fill="none" stroke-width="2"/>
+          <circle id="timer-arc" class="timer-arc" cx="120" cy="120" r="112" fill="none"
+                  stroke-width="2" stroke-linecap="round" transform="rotate(-90 120 120)"/>
+        </svg>
+        <span id="timer-display" class="timer-display" role="timer" aria-live="off"></span>
+        <span id="timer-note" class="timer-note"></span>
+      </div>
+    </div>
+
+    <div class="timer-controls">
+      <button type="button" id="timer-primary" class="timer-primary">Start</button>
+      <button type="button" id="timer-reset" class="timer-secondary" hidden>Reset</button>
+    </div>
   </dialog>
 
   <dialog id="stats" class="dialog dialog-wide">

@@ -7,6 +7,7 @@
   var THEME_KEY = 'todo.theme';
   var TIMER_KEY = 'todo.timer.v1';
   var LOG_KEY = 'todo.focuslog.v1';
+  var STANDALONE_KEY = 'todo.standalone.v1';
   var PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
   var PRIORITY_LABEL = { high: 'High', medium: 'Medium', low: 'Low' };
 
@@ -42,12 +43,27 @@
     showStats: document.getElementById('show-stats'),
     statsDialog: document.getElementById('stats'),
     statsBody: document.getElementById('stats-body'),
-    statsClose: document.getElementById('stats-close')
+    statsClose: document.getElementById('stats-close'),
+    focusReset: document.getElementById('focus-reset'),
+    timerOpen: document.getElementById('timer-open'),
+    timerView: document.getElementById('timer-view'),
+    timerClose: document.getElementById('timer-close'),
+    timerSetup: document.getElementById('timer-setup'),
+    timerLive: document.getElementById('timer-live'),
+    timerHours: document.getElementById('timer-hours'),
+    timerMinutes: document.getElementById('timer-minutes'),
+    timerPresets: document.querySelector('.timer-presets'),
+    timerDisplay: document.getElementById('timer-display'),
+    timerNote: document.getElementById('timer-note'),
+    timerArc: document.getElementById('timer-arc'),
+    timerPrimary: document.getElementById('timer-primary'),
+    timerReset: document.getElementById('timer-reset')
   };
 
   var tasks = loadTasks();
   var log = loadLog();
   var timer = loadTimer();
+  var standalone = loadStandalone();
   var filter = 'all';
   var editingId = null;
   var ticker = null;
@@ -163,6 +179,43 @@
       expired: t.expired === true,
       lastTick: typeof t.lastTick === 'number' ? t.lastTick : Date.now()
     };
+  }
+
+  function loadStandalone() {
+    var raw;
+    try {
+      raw = localStorage.getItem(STANDALONE_KEY);
+    } catch (e) {
+      return null;
+    }
+    if (!raw) return null;
+
+    var t;
+    try {
+      t = JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+    if (!t || typeof t !== 'object') return null;
+    if (typeof t.remainingMs !== 'number' || typeof t.plannedMs !== 'number') return null;
+    if (t.plannedMs <= 0) return null;
+
+    return {
+      remainingMs: Math.max(0, t.remainingMs),
+      plannedMs: t.plannedMs,
+      running: t.running === true,
+      expired: t.expired === true,
+      lastTick: typeof t.lastTick === 'number' ? t.lastTick : Date.now()
+    };
+  }
+
+  function saveStandalone() {
+    try {
+      if (standalone) localStorage.setItem(STANDALONE_KEY, JSON.stringify(standalone));
+      else localStorage.removeItem(STANDALONE_KEY);
+    } catch (e) {
+      // Same tolerance as everything else here.
+    }
   }
 
   function saveTimer() {
@@ -382,6 +435,26 @@
     render();
   }
 
+  // Puts the countdown back to its full planned length and throws away the
+  // time counted in this session - the fix for a timer started by accident.
+  function resetFocus() {
+    if (!timer) return;
+    var task = findTask(timer.taskId);
+    if (!task) return;
+
+    var planned = task.estimateMin * 60000;
+    timer.remainingMs = planned;
+    timer.plannedMs = planned;
+    timer.elapsedMs = 0;
+    timer.expired = false;
+    timer.lastTick = Date.now();
+
+    saveTimer();
+    closeDialog(els.timesUp);
+    if (timer.running) startTicker();
+    render();
+  }
+
   function pauseFocus() {
     if (!timer || !timer.running) return;
     advanceTimer();
@@ -427,9 +500,13 @@
     toggleTask(id);
   }
 
+  function anythingRunning() {
+    return Boolean((timer && timer.running) || (standalone && standalone.running));
+  }
+
   function startTicker() {
     stopTicker();
-    ticker = setInterval(onTick, 250);
+    if (anythingRunning()) ticker = setInterval(onTick, 250);
   }
 
   function stopTicker() {
@@ -439,24 +516,168 @@
     }
   }
 
+  // A single interval advances whichever timers are running, so the two never
+  // drift apart and there is only ever one wake-up in flight.
   function onTick() {
-    if (!timer || !timer.running) {
-      stopTicker();
+    var focusJustExpired = false;
+    var standaloneJustExpired = false;
+
+    if (timer && timer.running) {
+      advanceTimer();
+      saveTimer();
+      renderFocus();
+      if (timer.expired) focusJustExpired = true;
+    }
+
+    if (standalone && standalone.running) {
+      advanceStandalone();
+      saveStandalone();
+      renderStandalone();
+      if (standalone.expired) standaloneJustExpired = true;
+    }
+
+    updateTitle();
+    if (!anythingRunning()) stopTicker();
+
+    if (standaloneJustExpired) openTimerView();
+    if (focusJustExpired) openTimesUp();
+  }
+
+  /* Standalone timer -------------------------------------------------------
+     Independent of any task: set a duration, run it full-screen. It shares the
+     ticker and the same wall-clock rules as the focus timer. */
+
+  function advanceStandalone() {
+    if (!standalone || !standalone.running) return;
+    var now = Date.now();
+    var delta = Math.max(0, now - standalone.lastTick);
+    standalone.lastTick = now;
+    standalone.remainingMs = Math.max(0, standalone.remainingMs - delta);
+    if (standalone.remainingMs === 0) {
+      standalone.running = false;
+      standalone.expired = true;
+    }
+  }
+
+  function readTimerFields() {
+    var hours = Math.min(23, Math.max(0, Math.floor(Number(els.timerHours.value) || 0)));
+    var minutes = Math.min(59, Math.max(0, Math.floor(Number(els.timerMinutes.value) || 0)));
+    return (hours * 3600 + minutes * 60) * 1000;
+  }
+
+  function startStandalone() {
+    var ms = readTimerFields();
+    if (ms <= 0) return;
+    standalone = {
+      remainingMs: ms,
+      plannedMs: ms,
+      running: true,
+      expired: false,
+      lastTick: Date.now()
+    };
+    saveStandalone();
+    startTicker();
+    renderStandalone();
+    updateTitle();
+  }
+
+  function pauseStandalone() {
+    if (!standalone || !standalone.running) return;
+    advanceStandalone();
+    standalone.running = false;
+    saveStandalone();
+    if (!anythingRunning()) stopTicker();
+    renderStandalone();
+    updateTitle();
+  }
+
+  function resumeStandalone() {
+    if (!standalone || standalone.running || standalone.expired) return;
+    standalone.running = true;
+    standalone.lastTick = Date.now();
+    saveStandalone();
+    startTicker();
+    renderStandalone();
+    updateTitle();
+  }
+
+  // Clears the timer entirely and returns to the duration picker.
+  function resetStandalone() {
+    if (standalone) {
+      var minutes = Math.round(standalone.plannedMs / 60000);
+      els.timerHours.value = String(Math.floor(minutes / 60));
+      els.timerMinutes.value = String(minutes % 60);
+    }
+    standalone = null;
+    saveStandalone();
+    if (!anythingRunning()) stopTicker();
+    renderStandalone();
+    updateTitle();
+  }
+
+  function openTimerView() {
+    renderStandalone();
+    openDialog(els.timerView);
+  }
+
+  function renderStandalone() {
+    var live = Boolean(standalone);
+    els.timerLive.hidden = !live;
+    els.timerSetup.hidden = live;
+    els.timerReset.hidden = !live;
+
+    // The header button carries a dot so a running timer is visible from the list.
+    els.timerOpen.dataset.state = !standalone ? 'idle'
+      : (standalone.expired ? 'expired' : (standalone.running ? 'running' : 'paused'));
+
+    if (!standalone) {
+      els.timerView.dataset.state = 'setup';
+      els.timerPrimary.textContent = 'Start';
+      els.timerPrimary.disabled = readTimerFields() <= 0;
       return;
     }
-    advanceTimer();
-    saveTimer();
-    renderFocus();
-    if (timer.expired) {
-      stopTicker();
-      openTimesUp();
+
+    els.timerView.dataset.state = standalone.expired ? 'expired'
+      : (standalone.running ? 'running' : 'paused');
+
+    var clock = formatClock(standalone.remainingMs);
+    if (els.timerDisplay.textContent !== clock) els.timerDisplay.textContent = clock;
+
+    els.timerNote.textContent = standalone.expired ? 'Time’s up'
+      : (standalone.running ? '' : 'Paused');
+
+    els.timerPrimary.disabled = false;
+    els.timerPrimary.textContent = standalone.expired ? 'Done'
+      : (standalone.running ? 'Pause' : 'Resume');
+
+    var circumference = 2 * Math.PI * 112;
+    var fraction = standalone.plannedMs > 0 ? standalone.remainingMs / standalone.plannedMs : 0;
+    els.timerArc.setAttribute('stroke-dasharray', circumference.toFixed(2));
+    els.timerArc.setAttribute('stroke-dashoffset', (circumference * (1 - fraction)).toFixed(2));
+  }
+
+  // One place decides what the tab says, so the two timers cannot fight over it.
+  function updateTitle() {
+    if (standalone && standalone.running) {
+      document.title = formatClock(standalone.remainingMs) + ' · Timer';
+      return;
     }
+    if (standalone && standalone.expired) {
+      document.title = 'Time’s up · Timer';
+      return;
+    }
+    if (timer && timer.running) {
+      var task = findTask(timer.taskId);
+      document.title = formatClock(timer.remainingMs) + (task ? ' · ' + task.text : '');
+      return;
+    }
+    document.title = baseTitle;
   }
 
   function renderFocus() {
     if (!timer) {
       els.focusBar.hidden = true;
-      document.title = baseTitle;
+      updateTitle();
       return;
     }
 
@@ -482,7 +703,7 @@
     els.focusArc.setAttribute('stroke-dasharray', circumference.toFixed(2));
     els.focusArc.setAttribute('stroke-dashoffset', (circumference * (1 - fraction)).toFixed(2));
 
-    document.title = timer.running ? clock + ' · ' + task.text : baseTitle;
+    updateTitle();
   }
 
   function openTimesUp() {
@@ -963,7 +1184,43 @@
     else resumeFocus();
   });
 
+  els.focusReset.addEventListener('click', resetFocus);
   els.focusStop.addEventListener('click', stopFocus);
+
+  els.timerOpen.addEventListener('click', openTimerView);
+  els.timerClose.addEventListener('click', function () {
+    // Closing the view never cancels the timer; it keeps running behind it.
+    closeDialog(els.timerView);
+  });
+
+  els.timerPrimary.addEventListener('click', function () {
+    if (!standalone) startStandalone();
+    else if (standalone.expired) resetStandalone();
+    else if (standalone.running) pauseStandalone();
+    else resumeStandalone();
+  });
+
+  els.timerReset.addEventListener('click', resetStandalone);
+
+  els.timerPresets.addEventListener('click', function (event) {
+    var preset = event.target.closest('[data-preset]');
+    if (!preset) return;
+    var minutes = Number(preset.dataset.preset);
+    els.timerHours.value = String(Math.floor(minutes / 60));
+    els.timerMinutes.value = String(minutes % 60);
+    renderStandalone();
+  });
+
+  [els.timerHours, els.timerMinutes].forEach(function (input) {
+    input.addEventListener('input', renderStandalone);
+  });
+
+  // Enter anywhere in the duration fields starts the timer.
+  els.timerSetup.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    startStandalone();
+  });
   els.timesUpDone.addEventListener('click', finishFocus);
   els.timesUpDismiss.addEventListener('click', stopFocus);
 
@@ -1010,10 +1267,17 @@
     }
   }
 
-  render();
-
-  if (timer) {
-    if (timer.expired) openTimesUp();
-    else if (timer.running) startTicker();
+  // The standalone timer catches up on wall-clock time the same way.
+  if (standalone) {
+    advanceStandalone();
+    saveStandalone();
   }
+
+  render();
+  renderStandalone();
+  updateTitle();
+
+  if (anythingRunning()) startTicker();
+  if (standalone && standalone.expired) openTimerView();
+  if (timer && timer.expired) openTimesUp();
 })();

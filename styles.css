@@ -979,3 +979,302 @@ button {
     height: 1.75rem;
   }
 }
+
+/* Header timer button ------------------------------------------------------
+   A dot on the icon so a running timer stays visible from the list. */
+
+.icon-button {
+  position: relative;
+}
+
+.icon-dot {
+  position: absolute;
+  top: 0.1875rem;
+  right: 0.1875rem;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--paper);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+#timer-open[data-state="running"] .icon-dot,
+#timer-open[data-state="paused"] .icon-dot,
+#timer-open[data-state="expired"] .icon-dot {
+  opacity: 1;
+}
+
+#timer-open[data-state="paused"] .icon-dot {
+  background: var(--ink-3);
+}
+
+#timer-open[data-state="expired"] .icon-dot {
+  background: var(--overdue);
+}
+
+/* Full-screen timer --------------------------------------------------------
+   Deliberately bare: a duration, a countdown, and one control. */
+
+.timer-view {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.timer-view::backdrop {
+  background: var(--paper);
+}
+
+.timer-view[open] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3rem;
+}
+
+.timer-close {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-3);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.timer-close:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.timer-stage {
+  display: grid;
+  place-items: center;
+  width: min(20rem, calc(100vw - 3rem));
+  aspect-ratio: 1;
+}
+
+.timer-stage > * {
+  grid-area: 1 / 1;
+}
+
+/* Setup ------------------------------------------------------------------- */
+
+.timer-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.timer-fields {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.timer-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.timer-field input {
+  width: 3.5ch;
+  padding: 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 4rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.timer-field input::-webkit-outer-spin-button,
+.timer-field input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.timer-field input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.timer-field span {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.timer-colon {
+  font-size: 4rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-3);
+}
+
+.timer-presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.timer-presets button {
+  height: 2rem;
+  padding: 0 0.875rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.timer-presets button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Live -------------------------------------------------------------------- */
+
+.timer-live {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.timer-live > * {
+  grid-area: 1 / 1;
+}
+
+.timer-ring {
+  width: 100%;
+  height: 100%;
+}
+
+.timer-track {
+  stroke: var(--line);
+}
+
+.timer-arc {
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.3s linear;
+}
+
+.timer-view[data-state="paused"] .timer-arc {
+  stroke: var(--ink-3);
+}
+
+.timer-view[data-state="expired"] .timer-arc {
+  stroke: var(--overdue);
+}
+
+.timer-display {
+  font-size: clamp(3rem, 14vw, 4.5rem);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.timer-view[data-state="paused"] .timer-display {
+  color: var(--ink-3);
+}
+
+.timer-note {
+  align-self: end;
+  margin-bottom: 22%;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.timer-view[data-state="expired"] .timer-note {
+  color: var(--overdue);
+}
+
+/* Controls ---------------------------------------------------------------- */
+
+.timer-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+}
+
+.timer-primary {
+  min-width: 9rem;
+  height: 2.75rem;
+  padding: 0 1.5rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--solid-bg);
+  color: var(--solid-fg);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  transition: opacity 0.15s ease;
+}
+
+.timer-primary:hover {
+  opacity: 0.85;
+}
+
+.timer-primary:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.timer-secondary {
+  height: 2.75rem;
+  padding: 0 1.25rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 0.9375rem;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.timer-secondary:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+@media (max-width: 34rem) {
+  .timer-view[open] {
+    gap: 2rem;
+  }
+
+  .timer-field input,
+  .timer-colon {
+    font-size: 3rem;
+  }
+}
