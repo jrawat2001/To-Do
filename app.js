@@ -5,8 +5,15 @@
 
   var TASKS_KEY = 'todo.tasks.v1';
   var THEME_KEY = 'todo.theme';
+  var TIMER_KEY = 'todo.timer.v1';
+  var LOG_KEY = 'todo.focuslog.v1';
   var PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
   var PRIORITY_LABEL = { high: 'High', medium: 'Medium', low: 'Low' };
+
+  // Keep the log bounded so storage cannot grow without limit.
+  var LOG_LIMIT = 200;
+  // Below this many sessions the overrun ratio is too noisy to suggest from.
+  var MIN_SESSIONS_FOR_HINT = 3;
 
   var els = {
     form: document.getElementById('add-form'),
@@ -18,12 +25,33 @@
     counter: document.getElementById('counter'),
     clearDone: document.getElementById('clear-done'),
     themeToggle: document.getElementById('theme-toggle'),
-    filters: Array.prototype.slice.call(document.querySelectorAll('.filter'))
+    filters: Array.prototype.slice.call(document.querySelectorAll('.filter')),
+    estimate: document.getElementById('task-estimate'),
+    estimateHint: document.getElementById('estimate-hint'),
+    focusBar: document.getElementById('focus-bar'),
+    focusTask: document.getElementById('focus-task'),
+    focusRemaining: document.getElementById('focus-remaining'),
+    focusArc: document.getElementById('focus-arc'),
+    focusToggle: document.getElementById('focus-toggle'),
+    focusStop: document.getElementById('focus-stop'),
+    timesUp: document.getElementById('times-up'),
+    timesUpTask: document.getElementById('times-up-task'),
+    timesUpDetail: document.getElementById('times-up-detail'),
+    timesUpDone: document.getElementById('times-up-done'),
+    timesUpDismiss: document.getElementById('times-up-dismiss'),
+    showStats: document.getElementById('show-stats'),
+    statsDialog: document.getElementById('stats'),
+    statsBody: document.getElementById('stats-body'),
+    statsClose: document.getElementById('stats-close')
   };
 
   var tasks = loadTasks();
+  var log = loadLog();
+  var timer = loadTimer();
   var filter = 'all';
   var editingId = null;
+  var ticker = null;
+  var baseTitle = document.title;
 
   /* Storage --------------------------------------------------------------- */
 
@@ -58,7 +86,12 @@
       done: task.done === true,
       dueDate: typeof task.dueDate === 'string' ? task.dueDate : '',
       priority: PRIORITY_RANK[task.priority] === undefined ? 'medium' : task.priority,
-      createdAt: typeof task.createdAt === 'number' ? task.createdAt : Date.now()
+      createdAt: typeof task.createdAt === 'number' ? task.createdAt : Date.now(),
+      estimateMin: typeof task.estimateMin === 'number' && task.estimateMin > 0 ? task.estimateMin : null,
+      spentSec: typeof task.spentSec === 'number' && task.spentSec > 0 ? task.spentSec : 0,
+      // How much of spentSec has already been written to the log, so a task
+      // toggled done twice is not counted twice.
+      loggedSec: typeof task.loggedSec === 'number' && task.loggedSec > 0 ? task.loggedSec : 0
     };
   }
 
@@ -67,6 +100,77 @@
       localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
     } catch (e) {
       // Storage unavailable (private mode, quota). The app still works in memory.
+    }
+  }
+
+  function loadLog() {
+    var raw;
+    try {
+      raw = localStorage.getItem(LOG_KEY);
+    } catch (e) {
+      return [];
+    }
+    if (!raw) return [];
+
+    var parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      return [];
+    }
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter(function (entry) {
+      return entry && typeof entry === 'object' &&
+        typeof entry.estimateMin === 'number' && entry.estimateMin > 0 &&
+        typeof entry.actualSec === 'number' && entry.actualSec > 0;
+    });
+  }
+
+  function saveLog() {
+    try {
+      localStorage.setItem(LOG_KEY, JSON.stringify(log));
+    } catch (e) {
+      // Same tolerance as tasks: history is nice to have, not load-bearing.
+    }
+  }
+
+  function loadTimer() {
+    var raw;
+    try {
+      raw = localStorage.getItem(TIMER_KEY);
+    } catch (e) {
+      return null;
+    }
+    if (!raw) return null;
+
+    var t;
+    try {
+      t = JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+    if (!t || typeof t !== 'object') return null;
+    if (typeof t.taskId !== 'string' || !t.taskId) return null;
+    if (typeof t.remainingMs !== 'number' || typeof t.plannedMs !== 'number') return null;
+
+    return {
+      taskId: t.taskId,
+      remainingMs: Math.max(0, t.remainingMs),
+      plannedMs: Math.max(0, t.plannedMs),
+      elapsedMs: typeof t.elapsedMs === 'number' && t.elapsedMs > 0 ? t.elapsedMs : 0,
+      running: t.running === true,
+      expired: t.expired === true,
+      lastTick: typeof t.lastTick === 'number' ? t.lastTick : Date.now()
+    };
+  }
+
+  function saveTimer() {
+    try {
+      if (timer) localStorage.setItem(TIMER_KEY, JSON.stringify(timer));
+      else localStorage.removeItem(TIMER_KEY);
+    } catch (e) {
+      // A timer that cannot be persisted still runs for this session.
     }
   }
 
@@ -79,14 +183,17 @@
 
   /* Mutations ------------------------------------------------------------- */
 
-  function addTask(text, dueDate, priority) {
+  function addTask(text, dueDate, priority, estimateMin) {
     tasks.push({
       id: createId(),
       text: text,
       done: false,
       dueDate: dueDate,
       priority: priority,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      estimateMin: estimateMin || null,
+      spentSec: 0,
+      loggedSec: 0
     });
     commit();
   }
@@ -101,8 +208,33 @@
   function toggleTask(id) {
     var task = findTask(id);
     if (!task) return;
+
+    // Bank any in-flight focus time first, so the logged actual includes the
+    // seconds spent right up to the moment the task was checked off.
+    if (timer && timer.taskId === id) endFocusSession();
+
     task.done = !task.done;
+    if (task.done) recordCompletion(task);
     commit();
+  }
+
+  // Writes one estimate-vs-actual row, but only for time not already logged,
+  // so unchecking and rechecking a task cannot double-count it.
+  function recordCompletion(task) {
+    if (!task.estimateMin) return;
+    if (task.spentSec <= task.loggedSec) return;
+
+    log.push({
+      text: task.text,
+      priority: task.priority,
+      estimateMin: task.estimateMin,
+      actualSec: Math.round(task.spentSec),
+      finishedAt: Date.now()
+    });
+    if (log.length > LOG_LIMIT) log = log.slice(log.length - LOG_LIMIT);
+
+    task.loggedSec = task.spentSec;
+    saveLog();
   }
 
   function editTask(id, text) {
@@ -118,6 +250,7 @@
   }
 
   function deleteTask(id) {
+    if (timer && timer.taskId === id) endFocusSession();
     tasks = tasks.filter(function (task) {
       return task.id !== id;
     });
@@ -128,6 +261,7 @@
     tasks = tasks.filter(function (task) {
       return !task.done;
     });
+    if (timer && !findTask(timer.taskId)) endFocusSession();
     commit();
   }
 
@@ -158,6 +292,397 @@
     var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     if (isNaN(date.getTime())) return value;
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  /* Focus timer ------------------------------------------------------------
+     The countdown runs on wall-clock time, so it keeps ticking while the tab
+     is backgrounded or the app is closed. Recorded time is capped at what was
+     planned, so a long absence expires the timer without inventing hours of
+     "focus" that never happened. */
+
+  function formatMinutes(min) {
+    if (min < 60) return min + 'm';
+    var hours = Math.floor(min / 60);
+    var rest = min % 60;
+    return rest ? hours + 'h ' + rest + 'm' : hours + 'h';
+  }
+
+  function formatDuration(sec) {
+    if (sec < 60) return Math.round(sec) + 's';
+    return formatMinutes(Math.round(sec / 60));
+  }
+
+  function formatClock(ms) {
+    var total = Math.max(0, Math.ceil(ms / 1000));
+    var hours = Math.floor(total / 3600);
+    var minutes = Math.floor((total % 3600) / 60);
+    var seconds = total % 60;
+    var mm = String(minutes).padStart(2, '0');
+    var ss = String(seconds).padStart(2, '0');
+    return hours > 0 ? hours + ':' + mm + ':' + ss : mm + ':' + ss;
+  }
+
+  function startFocus(id) {
+    var task = findTask(id);
+    if (!task || task.done || !task.estimateMin) return;
+    if (timer && timer.taskId === id) return;
+    if (timer) endFocusSession();
+
+    var ms = task.estimateMin * 60000;
+    timer = {
+      taskId: id,
+      remainingMs: ms,
+      plannedMs: ms,
+      elapsedMs: 0,
+      running: true,
+      expired: false,
+      lastTick: Date.now()
+    };
+    saveTimer();
+    startTicker();
+    render();
+  }
+
+  // Moves wall-clock progress into the timer, capped at the planned duration.
+  function advanceTimer() {
+    if (!timer || !timer.running) return;
+    var now = Date.now();
+    var delta = Math.max(0, now - timer.lastTick);
+    timer.lastTick = now;
+
+    var room = Math.max(0, timer.plannedMs - timer.elapsedMs);
+    timer.elapsedMs += Math.min(delta, room);
+    timer.remainingMs = Math.max(0, timer.remainingMs - delta);
+
+    if (timer.remainingMs === 0) {
+      timer.running = false;
+      timer.expired = true;
+    }
+  }
+
+  // Banks elapsed time onto the task and tears the session down.
+  function endFocusSession() {
+    if (!timer) return;
+    advanceTimer();
+
+    var task = findTask(timer.taskId);
+    if (task && timer.elapsedMs > 0) {
+      task.spentSec += Math.round(timer.elapsedMs / 1000);
+      saveTasks();
+    }
+
+    timer = null;
+    saveTimer();
+    stopTicker();
+    closeDialog(els.timesUp);
+  }
+
+  function stopFocus() {
+    endFocusSession();
+    render();
+  }
+
+  function pauseFocus() {
+    if (!timer || !timer.running) return;
+    advanceTimer();
+    timer.running = false;
+    saveTimer();
+    stopTicker();
+    renderFocus();
+  }
+
+  function resumeFocus() {
+    if (!timer || timer.running || timer.expired) return;
+    timer.running = true;
+    timer.lastTick = Date.now();
+    saveTimer();
+    startTicker();
+    renderFocus();
+  }
+
+  function extendFocus(minutes) {
+    if (!timer) return;
+    var ms = minutes * 60000;
+    timer.remainingMs += ms;
+    timer.plannedMs += ms;
+    timer.expired = false;
+    timer.running = true;
+    timer.lastTick = Date.now();
+    saveTimer();
+    closeDialog(els.timesUp);
+    startTicker();
+    render();
+  }
+
+  // "Done" from the prompt: bank the time, check the task off, log the result.
+  function finishFocus() {
+    if (!timer) return;
+    var id = timer.taskId;
+    closeDialog(els.timesUp);
+    var task = findTask(id);
+    if (task && task.done) {
+      stopFocus();
+      return;
+    }
+    toggleTask(id);
+  }
+
+  function startTicker() {
+    stopTicker();
+    ticker = setInterval(onTick, 250);
+  }
+
+  function stopTicker() {
+    if (ticker) {
+      clearInterval(ticker);
+      ticker = null;
+    }
+  }
+
+  function onTick() {
+    if (!timer || !timer.running) {
+      stopTicker();
+      return;
+    }
+    advanceTimer();
+    saveTimer();
+    renderFocus();
+    if (timer.expired) {
+      stopTicker();
+      openTimesUp();
+    }
+  }
+
+  function renderFocus() {
+    if (!timer) {
+      els.focusBar.hidden = true;
+      document.title = baseTitle;
+      return;
+    }
+
+    var task = findTask(timer.taskId);
+    if (!task) {
+      els.focusBar.hidden = true;
+      return;
+    }
+
+    els.focusBar.hidden = false;
+    els.focusBar.dataset.state = timer.expired ? 'expired' : (timer.running ? 'running' : 'paused');
+
+    if (els.focusTask.textContent !== task.text) els.focusTask.textContent = task.text;
+
+    var clock = formatClock(timer.remainingMs);
+    if (els.focusRemaining.textContent !== clock) els.focusRemaining.textContent = clock;
+
+    els.focusToggle.textContent = timer.running ? 'Pause' : 'Resume';
+    els.focusToggle.hidden = timer.expired;
+
+    var circumference = 2 * Math.PI * 19;
+    var fraction = timer.plannedMs > 0 ? timer.remainingMs / timer.plannedMs : 0;
+    els.focusArc.setAttribute('stroke-dasharray', circumference.toFixed(2));
+    els.focusArc.setAttribute('stroke-dashoffset', (circumference * (1 - fraction)).toFixed(2));
+
+    document.title = timer.running ? clock + ' · ' + task.text : baseTitle;
+  }
+
+  function openTimesUp() {
+    if (!timer) return;
+    var task = findTask(timer.taskId);
+    if (!task) return;
+
+    els.timesUpTask.textContent = task.text;
+    var planned = Math.round(timer.plannedMs / 60000);
+    var spent = task.spentSec + Math.round(timer.elapsedMs / 1000);
+    els.timesUpDetail.textContent = planned > task.estimateMin
+      ? 'Estimated ' + formatMinutes(task.estimateMin) + ', now ' + formatDuration(spent) + ' in.'
+      : formatMinutes(task.estimateMin) + ' up.';
+
+    renderFocus();
+    openDialog(els.timesUp);
+  }
+
+  function openDialog(dialog) {
+    if (!dialog) return;
+    if (typeof dialog.showModal === 'function') {
+      if (!dialog.open) dialog.showModal();
+    } else {
+      dialog.setAttribute('open', '');
+    }
+  }
+
+  function closeDialog(dialog) {
+    if (!dialog) return;
+    if (typeof dialog.close === 'function') {
+      if (dialog.open) dialog.close();
+    } else {
+      dialog.removeAttribute('open');
+    }
+  }
+
+  /* Estimate learning ------------------------------------------------------
+     One number drawn from history: how much longer things actually take than
+     you think. Below a few sessions it stays quiet rather than guessing. */
+
+  function estimateMultiplier() {
+    if (log.length < MIN_SESSIONS_FOR_HINT) return null;
+    var estimated = 0;
+    var actual = 0;
+    log.forEach(function (entry) {
+      estimated += entry.estimateMin * 60;
+      actual += entry.actualSec;
+    });
+    if (estimated <= 0) return null;
+    return actual / estimated;
+  }
+
+  function renderEstimateHint() {
+    var multiplier = estimateMultiplier();
+    var chosen = Number(els.estimate.value);
+
+    els.estimateHint.textContent = '';
+    if (!multiplier || !chosen || Math.abs(multiplier - 1) < 0.1) {
+      els.estimateHint.hidden = true;
+      return;
+    }
+
+    // Round to the nearest 5 minutes so suggestions stay human.
+    var suggested = Math.max(5, Math.round((chosen * multiplier) / 5) * 5);
+    if (suggested === chosen) {
+      els.estimateHint.hidden = true;
+      return;
+    }
+
+    var verb = multiplier > 1 ? 'over' : 'under';
+    var label = document.createElement('span');
+    label.textContent = 'Your ' + log.length + ' logged sessions run ' +
+      multiplier.toFixed(1) + '× ' + verb + ' estimate. ';
+    els.estimateHint.appendChild(label);
+
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'hint-button';
+    button.textContent = 'Use ' + formatMinutes(suggested) + ' instead';
+    button.addEventListener('click', function () {
+      applyEstimate(suggested);
+    });
+    els.estimateHint.appendChild(button);
+
+    els.estimateHint.hidden = false;
+  }
+
+  function applyEstimate(minutes) {
+    var value = String(minutes);
+    var exists = Array.prototype.some.call(els.estimate.options, function (option) {
+      return option.value === value;
+    });
+    if (!exists) {
+      var option = document.createElement('option');
+      option.value = value;
+      option.textContent = formatMinutes(minutes);
+      els.estimate.appendChild(option);
+    }
+    els.estimate.value = value;
+    renderEstimateHint();
+  }
+
+  /* Stats ------------------------------------------------------------------ */
+
+  function renderStats() {
+    els.statsBody.textContent = '';
+    if (!log.length) return;
+
+    var multiplier = estimateMultiplier();
+    var totalEstimated = 0;
+    var totalActual = 0;
+    var buckets = {};
+
+    log.forEach(function (entry) {
+      totalEstimated += entry.estimateMin * 60;
+      totalActual += entry.actualSec;
+      var bucket = buckets[entry.priority] || (buckets[entry.priority] = { n: 0, est: 0, act: 0 });
+      bucket.n += 1;
+      bucket.est += entry.estimateMin * 60;
+      bucket.act += entry.actualSec;
+    });
+
+    var summary = document.createElement('p');
+    summary.className = 'stats-lede';
+    var ratio = totalEstimated > 0 ? totalActual / totalEstimated : 1;
+    summary.textContent = log.length + ' session' + (log.length === 1 ? '' : 's') + ' logged. ' +
+      (Math.abs(ratio - 1) < 0.05
+        ? 'Your estimates are about right.'
+        : 'You run ' + ratio.toFixed(1) + '× your estimates on average.');
+    els.statsBody.appendChild(summary);
+
+    // Which kinds of task consistently run over.
+    var order = ['high', 'medium', 'low'].filter(function (key) { return buckets[key]; });
+    if (order.length) {
+      var table = document.createElement('table');
+      table.className = 'stats-table';
+
+      var head = document.createElement('tr');
+      ['Priority', 'Sessions', 'Estimated', 'Actual', 'Ratio'].forEach(function (label) {
+        var th = document.createElement('th');
+        th.textContent = label;
+        head.appendChild(th);
+      });
+      table.appendChild(head);
+
+      order.forEach(function (key) {
+        var bucket = buckets[key];
+        var bucketRatio = bucket.est > 0 ? bucket.act / bucket.est : 1;
+        var row = document.createElement('tr');
+        if (bucketRatio > 1.15) row.className = 'is-overrun';
+
+        [
+          PRIORITY_LABEL[key],
+          String(bucket.n),
+          formatDuration(bucket.est),
+          formatDuration(bucket.act),
+          bucketRatio.toFixed(1) + '×'
+        ].forEach(function (value) {
+          var cell = document.createElement('td');
+          cell.textContent = value;
+          row.appendChild(cell);
+        });
+        table.appendChild(row);
+      });
+
+      els.statsBody.appendChild(table);
+    }
+
+    var recentTitle = document.createElement('h3');
+    recentTitle.className = 'stats-subtitle';
+    recentTitle.textContent = 'Recent sessions';
+    els.statsBody.appendChild(recentTitle);
+
+    var list = document.createElement('ul');
+    list.className = 'stats-list';
+    log.slice(-5).reverse().forEach(function (entry) {
+      var item = document.createElement('li');
+
+      var name = document.createElement('span');
+      name.className = 'stats-name';
+      name.textContent = entry.text;
+      item.appendChild(name);
+
+      var value = document.createElement('span');
+      value.className = 'stats-value';
+      var entryRatio = entry.actualSec / (entry.estimateMin * 60);
+      if (entryRatio > 1.15) value.classList.add('is-overrun');
+      value.textContent = formatDuration(entry.actualSec) + ' of ' + formatMinutes(entry.estimateMin);
+      item.appendChild(value);
+
+      list.appendChild(item);
+    });
+    els.statsBody.appendChild(list);
+
+    if (multiplier) {
+      var footnote = document.createElement('p');
+      footnote.className = 'stats-footnote';
+      footnote.textContent = 'New estimates are compared against this history.';
+      els.statsBody.appendChild(footnote);
+    }
   }
 
   /* Selection & sorting --------------------------------------------------- */
@@ -205,6 +730,10 @@
     els.counter.textContent = remaining + (remaining === 1 ? ' item left' : ' items left');
 
     els.clearDone.hidden = remaining === tasks.length;
+    els.showStats.hidden = log.length === 0;
+
+    renderFocus();
+    renderEstimateHint();
 
     els.filters.forEach(function (button) {
       button.setAttribute('aria-pressed', String(button.dataset.filter === filter));
@@ -228,7 +757,8 @@
 
   function renderTask(task) {
     var item = document.createElement('li');
-    item.className = 'task' + (task.done ? ' is-done' : '');
+    item.className = 'task' + (task.done ? ' is-done' : '') +
+      (timer && timer.taskId === task.id ? ' is-focused' : '');
     item.dataset.id = task.id;
     item.dataset.priority = task.priority;
 
@@ -269,6 +799,18 @@
     priority.dataset.priority = task.priority;
     priority.textContent = PRIORITY_LABEL[task.priority];
     meta.appendChild(priority);
+
+    if (task.estimateMin) {
+      var estimate = document.createElement('span');
+      estimate.className = 'badge badge-estimate';
+      if (task.spentSec > 0) {
+        estimate.textContent = formatDuration(task.spentSec) + ' of ' + formatMinutes(task.estimateMin);
+        if (task.spentSec > task.estimateMin * 60) estimate.classList.add('is-overrun');
+      } else {
+        estimate.textContent = formatMinutes(task.estimateMin);
+      }
+      meta.appendChild(estimate);
+    }
 
     if (task.dueDate) {
       var due = document.createElement('span');
@@ -328,6 +870,17 @@
     var actions = document.createElement('div');
     actions.className = 'task-actions';
 
+    var isFocused = timer && timer.taskId === task.id;
+    if (!task.done && task.estimateMin && !isFocused) {
+      var focus = document.createElement('button');
+      focus.type = 'button';
+      focus.className = 'task-action focus';
+      focus.dataset.action = 'focus';
+      focus.textContent = '▶';
+      focus.setAttribute('aria-label', 'Start ' + formatMinutes(task.estimateMin) + ' focus timer: ' + task.text);
+      actions.appendChild(focus);
+    }
+
     var edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'task-action';
@@ -354,22 +907,38 @@
     var text = els.text.value.trim();
     if (!text) return;
 
-    addTask(text, els.due.value, els.priority.value);
+    addTask(text, els.due.value, els.priority.value, Number(els.estimate.value) || null);
     els.form.reset();
     els.priority.value = 'medium';
+    els.estimate.value = '';
     els.text.focus();
   });
 
   // Delegated so rendering never has to rebind per-task listeners.
   els.list.addEventListener('click', function (event) {
     var control = event.target.closest('[data-action]');
-    if (!control) return;
+
+    // Tapping the task itself starts its timer, as long as there is an
+    // estimate to count down and the click was not the end of a text selection.
+    if (!control) {
+      var textNode = event.target.closest('.task-text');
+      if (!textNode) return;
+      var selection = window.getSelection();
+      if (selection && !selection.isCollapsed) return;
+      var row = textNode.closest('.task');
+      if (!row) return;
+      var candidate = findTask(row.dataset.id);
+      if (candidate && !candidate.done && candidate.estimateMin) startFocus(candidate.id);
+      return;
+    }
 
     var item = control.closest('.task');
     if (!item) return;
     var id = item.dataset.id;
 
-    if (control.dataset.action === 'toggle') {
+    if (control.dataset.action === 'focus') {
+      startFocus(id);
+    } else if (control.dataset.action === 'toggle') {
       toggleTask(id);
     } else if (control.dataset.action === 'edit') {
       editingId = id;
@@ -388,6 +957,37 @@
 
   els.clearDone.addEventListener('click', clearCompleted);
 
+  els.focusToggle.addEventListener('click', function () {
+    if (!timer) return;
+    if (timer.running) pauseFocus();
+    else resumeFocus();
+  });
+
+  els.focusStop.addEventListener('click', stopFocus);
+  els.timesUpDone.addEventListener('click', finishFocus);
+  els.timesUpDismiss.addEventListener('click', stopFocus);
+
+  els.timesUp.addEventListener('click', function (event) {
+    var extend = event.target.closest('[data-extend]');
+    if (extend) extendFocus(Number(extend.dataset.extend));
+  });
+
+  // Escape-closing the prompt should not silently discard the session.
+  els.timesUp.addEventListener('cancel', function (event) {
+    event.preventDefault();
+  });
+
+  els.showStats.addEventListener('click', function () {
+    renderStats();
+    openDialog(els.statsDialog);
+  });
+
+  els.statsClose.addEventListener('click', function () {
+    closeDialog(els.statsDialog);
+  });
+
+  els.estimate.addEventListener('change', renderEstimateHint);
+
   els.themeToggle.addEventListener('click', function () {
     var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
@@ -398,5 +998,22 @@
     }
   });
 
+  // A timer can outlive the page: the app may have been closed, or the device
+  // asleep. Catch up on wall-clock time before the first paint.
+  if (timer) {
+    if (!findTask(timer.taskId)) {
+      timer = null;
+      saveTimer();
+    } else {
+      advanceTimer();
+      saveTimer();
+    }
+  }
+
   render();
+
+  if (timer) {
+    if (timer.expired) openTimesUp();
+    else if (timer.running) startTicker();
+  }
 })();

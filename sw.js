@@ -2,7 +2,7 @@
    Bump CACHE whenever index.html, styles.css, or app.js change, or installed
    copies will keep serving the old shell. */
 
-var CACHE = 'todo-v2';
+var CACHE = 'todo-v3';
 
 var SHELL = [
   './',

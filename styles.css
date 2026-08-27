@@ -95,6 +95,12 @@
   box-sizing: border-box;
 }
 
+/* An author `display` beats the UA rule for [hidden], so anything toggled by
+   the hidden attribute needs this to actually disappear. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   padding: 4rem 1.5rem 6rem;
@@ -213,10 +219,10 @@ button {
 
 .add-form {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: auto auto auto 1fr auto;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+  padding: 0.5rem 0.5rem 0.625rem;
   background: var(--surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
@@ -243,6 +249,11 @@ button {
 
 .field-text {
   min-width: 0;
+  grid-column: 1 / -1;
+}
+
+.add-form .primary-button {
+  grid-column: 5;
 }
 
 .field input,
@@ -258,8 +269,9 @@ button {
 }
 
 .field-text input {
-  padding-left: 0;
+  padding: 0.25rem 0.5rem;
   font-size: 1.0625rem;
+  height: 2.75rem;
 }
 
 .field-text input::placeholder {
@@ -650,7 +662,7 @@ button {
     padding-left: 0.5rem;
   }
 
-  .primary-button {
+  .add-form .primary-button {
     grid-column: 2;
   }
 
@@ -663,5 +675,307 @@ button {
   * {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+}
+
+/* Estimate hint -----------------------------------------------------------
+   Only appears once there is enough history to say something real. */
+
+.estimate-hint {
+  margin: -1.25rem 0 1.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+.hint-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Focus bar ---------------------------------------------------------------
+   The one place the app raises its voice, and only while a timer runs. */
+
+.focus-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.75rem 0.875rem;
+  margin-bottom: 1.25rem;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised);
+}
+
+.focus-dial {
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.focus-track {
+  stroke: var(--line);
+}
+
+.focus-arc {
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.3s linear;
+}
+
+.focus-bar[data-state="paused"] .focus-arc {
+  stroke: var(--ink-3);
+}
+
+.focus-bar[data-state="expired"] .focus-arc {
+  stroke: var(--overdue);
+}
+
+.focus-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.focus-task {
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-remaining {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.focus-bar[data-state="paused"] .focus-remaining {
+  color: var(--ink-3);
+}
+
+.focus-controls {
+  flex: none;
+  display: flex;
+  gap: 0.375rem;
+}
+
+.focus-button {
+  height: 2rem;
+  padding: 0 0.75rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.focus-button:hover {
+  background: var(--accent);
+  color: var(--solid-fg);
+}
+
+.focus-button-quiet {
+  background: transparent;
+  color: var(--ink-3);
+}
+
+.focus-button-quiet:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+/* The row currently being focused. */
+.task.is-focused {
+  background: var(--accent-soft);
+}
+
+.task.is-focused::before,
+.task.is-focused + .task::before {
+  opacity: 0;
+}
+
+.badge-estimate.is-overrun {
+  color: var(--overdue);
+  font-weight: 600;
+}
+
+/* Dialogs ----------------------------------------------------------------- */
+
+.dialog {
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-raised);
+}
+
+.dialog-wide {
+  width: min(30rem, calc(100vw - 2rem));
+}
+
+.dialog::backdrop {
+  background: rgba(20, 17, 14, 0.4);
+}
+
+.dialog-title {
+  margin: 0 0 0.5rem;
+  font-family: var(--display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-size: 1.375rem;
+  letter-spacing: -0.01em;
+}
+
+.dialog-task {
+  margin: 0 0 0.25rem;
+  font-size: 1.0625rem;
+  overflow-wrap: anywhere;
+}
+
+.dialog-detail {
+  margin: 0 0 1.25rem;
+  font-size: 0.875rem;
+  color: var(--ink-3);
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.secondary-button {
+  height: 2.5rem;
+  padding: 0 1rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface-hover);
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease;
+}
+
+.secondary-button:hover {
+  background: var(--line);
+}
+
+.dialog-dismiss {
+  display: block;
+  margin: 1rem auto 0;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+/* Stats ------------------------------------------------------------------- */
+
+.stats-lede {
+  margin: 0 0 1.25rem;
+  color: var(--ink-2);
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-table th {
+  text-align: left;
+  padding: 0 0.5rem 0.5rem 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.stats-table td {
+  padding: 0.5rem 0.5rem 0.5rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.stats-table tr.is-overrun td:last-child {
+  color: var(--overdue);
+  font-weight: 600;
+}
+
+.stats-subtitle {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.stats-list {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  font-size: 0.875rem;
+}
+
+.stats-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4375rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.stats-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-value {
+  flex: none;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-value.is-overrun {
+  color: var(--overdue);
+  font-weight: 600;
+}
+
+.stats-footnote {
+  margin: 0 0 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+@media (max-width: 34rem) {
+  .focus-remaining {
+    font-size: 1.25rem;
+  }
+
+  .focus-controls {
+    flex-direction: column;
+  }
+
+  .focus-button {
+    height: 1.75rem;
   }
 }

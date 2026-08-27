@@ -53,10 +53,35 @@ python3 -m http.server 8000
 - **Works offline** — a service worker caches the app, so an installed copy opens
   with no connection.
 
+## Focus Mode
+
+A timer tied to finishing a task rather than to a fixed interval.
+
+1. Give a task a **time estimate** when you add it.
+2. **Tap the task** (or its ▶ button) to start counting down that estimate.
+3. When the time is up the app asks: **Done, or need more time?**
+   - *Done* checks the task off.
+   - *+5 / +10 min* extends and keeps going — as often as you need.
+4. Every completed task logs **actual time against estimate**.
+5. **Focus stats** (in the footer, once there is history) shows which kinds of
+   task consistently run over.
+
+Once a few sessions are logged, choosing an estimate surfaces a suggestion
+based on how much longer your tasks actually take — click it to apply.
+
+The countdown runs on wall-clock time, so it keeps going while the tab is in
+the background or the app is closed. Recorded time is capped at the planned
+duration, so leaving the app closed overnight expires the timer without
+inventing hours of focus that never happened. A running timer survives a
+reload; stopping early keeps the time you spent but logs nothing, since a
+half-finished task says nothing useful about the estimate.
+
 ## Storage
 
-Tasks are saved to `localStorage` under `todo.tasks.v1`, and the theme under
-`todo.theme`, so clearing your tasks never resets your theme. Everything stays on
+Tasks are saved to `localStorage` under `todo.tasks.v1`, the theme under
+`todo.theme`, a running timer under `todo.timer.v1`, and focus history under
+`todo.focuslog.v1` (capped at 200 sessions). Keeping them separate means
+clearing your tasks never resets your theme or your history. Everything stays on
 your machine — nothing is sent anywhere. If storage is unavailable (private
 browsing, blocked cookies), the app still runs; it just won't persist between
 reloads.

@@ -69,8 +69,42 @@
           <option value="high">High</option>
         </select>
       </div>
+      <div class="field">
+        <label for="task-estimate">Time estimate</label>
+        <select id="task-estimate" name="estimate">
+          <option value="">No estimate</option>
+          <option value="5">5m</option>
+          <option value="15">15m</option>
+          <option value="25">25m</option>
+          <option value="45">45m</option>
+          <option value="60">1h</option>
+          <option value="90">1h 30m</option>
+          <option value="120">2h</option>
+        </select>
+      </div>
       <button type="submit" class="primary-button">Add</button>
     </form>
+
+    <p id="estimate-hint" class="estimate-hint" hidden></p>
+
+    <section id="focus-bar" class="focus-bar" hidden aria-label="Focus timer">
+      <div class="focus-dial">
+        <svg viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">
+          <circle class="focus-track" cx="22" cy="22" r="19" fill="none" stroke-width="3"/>
+          <circle id="focus-arc" class="focus-arc" cx="22" cy="22" r="19" fill="none"
+                  stroke-width="3" stroke-linecap="round"
+                  transform="rotate(-90 22 22)"/>
+        </svg>
+      </div>
+      <div class="focus-info">
+        <span id="focus-task" class="focus-task"></span>
+        <span id="focus-remaining" class="focus-remaining" role="timer" aria-live="off"></span>
+      </div>
+      <div class="focus-controls">
+        <button type="button" id="focus-toggle" class="focus-button">Pause</button>
+        <button type="button" id="focus-stop" class="focus-button focus-button-quiet">Stop</button>
+      </div>
+    </section>
 
     <div class="filters" role="group" aria-label="Filter tasks">
       <button type="button" class="filter" data-filter="all" aria-pressed="true">All</button>
@@ -83,9 +117,32 @@
 
     <footer class="app-footer">
       <span id="counter" class="counter" aria-live="polite"></span>
-      <button type="button" id="clear-done" class="text-button" hidden>Clear completed</button>
+      <span class="footer-actions">
+        <button type="button" id="show-stats" class="text-button" hidden>Focus stats</button>
+        <button type="button" id="clear-done" class="text-button" hidden>Clear completed</button>
+      </span>
     </footer>
   </div>
+
+  <dialog id="times-up" class="dialog">
+    <h2 class="dialog-title">Time&rsquo;s up</h2>
+    <p class="dialog-task" id="times-up-task"></p>
+    <p class="dialog-detail" id="times-up-detail"></p>
+    <div class="dialog-actions">
+      <button type="button" id="times-up-done" class="primary-button">Done</button>
+      <button type="button" class="secondary-button" data-extend="5">+5 min</button>
+      <button type="button" class="secondary-button" data-extend="10">+10 min</button>
+    </div>
+    <button type="button" id="times-up-dismiss" class="text-button dialog-dismiss">Stop without finishing</button>
+  </dialog>
+
+  <dialog id="stats" class="dialog dialog-wide">
+    <h2 class="dialog-title">Focus stats</h2>
+    <div id="stats-body"></div>
+    <div class="dialog-actions">
+      <button type="button" id="stats-close" class="primary-button">Close</button>
+    </div>
+  </dialog>
 
   <script src="./app.js"></script>
   <script>
