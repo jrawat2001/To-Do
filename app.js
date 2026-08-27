@@ -380,14 +380,6 @@
     return now.getFullYear() + '-' + month + '-' + day;
   }
 
-  function formatDueDate(value) {
-    var parts = value.split('-');
-    if (parts.length !== 3) return value;
-    var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-    if (isNaN(date.getTime())) return value;
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-
   /* Focus timer ------------------------------------------------------------
      The countdown runs on wall-clock time, so it keeps ticking while the tab
      is backgrounded or the app is closed. Recorded time is capped at what was
@@ -1005,6 +997,23 @@
     }
   }
 
+  // "Sep 3" - deliberately year-less; the pill is a glance, not a record.
+  function formatShortDate(value) {
+    var parts = value.split('-');
+    if (parts.length !== 3) return value;
+    var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    if (isNaN(date.getTime())) return value;
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  // A completed task is never "overdue" - finishing it late is not a warning.
+  function dueTone(task) {
+    var now = today();
+    if (task.dueDate === now) return 'today';
+    if (task.dueDate < now && !task.done) return 'overdue';
+    return 'future';
+  }
+
   /* Selection & sorting --------------------------------------------------- */
 
   function visibleTasks() {
@@ -1055,8 +1064,16 @@
     renderFocus();
     renderEstimateHint();
 
+    var counts = {
+      all: tasks.length,
+      active: remaining,
+      done: tasks.length - remaining
+    };
+
     els.filters.forEach(function (button) {
       button.setAttribute('aria-pressed', String(button.dataset.filter === filter));
+      var count = button.querySelector('.filter-count');
+      if (count) count.textContent = '(' + counts[button.dataset.filter] + ')';
     });
 
     if (editingId) {
@@ -1103,6 +1120,8 @@
 
       var meta = renderMeta(task);
       if (meta) body.appendChild(meta);
+
+      if (task.tags.length) body.appendChild(renderTags(task));
     }
 
     item.appendChild(body);
@@ -1133,19 +1152,28 @@
     }
 
     if (task.dueDate) {
-      var due = document.createElement('span');
-      due.textContent = 'Due ' + formatDueDate(task.dueDate);
+      var tone = dueTone(task);
+      var due = makeBadge('badge-due badge-' + tone,
+        tone === 'today' ? 'Today' : formatShortDate(task.dueDate));
       meta.appendChild(due);
-
-      var now = today();
-      if (!task.done && task.dueDate < now) {
-        meta.appendChild(makeBadge('badge-overdue', 'Overdue'));
-      } else if (task.dueDate === now) {
-        meta.appendChild(makeBadge('badge-today', 'Today'));
-      }
     }
 
     return meta;
+  }
+
+  // Descriptive only: tags carry no weight in sorting or filtering.
+  function renderTags(task) {
+    var list = document.createElement('ul');
+    list.className = 'task-tags';
+
+    task.tags.forEach(function (tag) {
+      var item = document.createElement('li');
+      item.className = 'task-tag';
+      item.textContent = tag;
+      list.appendChild(item);
+    });
+
+    return list;
   }
 
   function makeBadge(className, label) {

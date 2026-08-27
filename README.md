@@ -41,9 +41,14 @@ python3 -m http.server 8000
   Escape cancels, and clearing the text removes the task.
 - **Filters** — All / Active / Done, with a live "N items left" counter and a
   "Clear completed" action that appears only when something is done.
-- **Due dates** — tasks show a `Today` badge on the day they're due and an
-  `Overdue` badge once the date has passed while still incomplete.
-- **Priority** — Low / Medium / High, shown as a dot and, for high priority, heavier text.
+- **Due dates** — a pill on each task: red once overdue, amber for today, muted
+  gray for anything further out, and nothing at all when no date is set. Reads
+  `Today` on the day, otherwise `Sep 3`.
+- **Priority** — Low / Medium / High, shown as a colored dot and a 3px left
+  border on the row (red / amber / green), plus heavier text for high priority.
+- **Tags** — type in the composer and press Enter or comma to make a chip; up to
+  six per task. Purely descriptive, so they never affect sort order.
+- **Tab counts** — All / Active / Done each carry a live count.
 - **Sorting** — incomplete first, then by priority, then by soonest due date
   (undated tasks last), then by creation time.
 - **Dark mode** — toggle in the header. Follows your OS preference on first visit

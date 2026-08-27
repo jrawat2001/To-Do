@@ -33,6 +33,7 @@
 
   /* Reserved for one job: a task that is genuinely late. */
   --overdue: #b4322c;
+  --overdue-soft: rgba(180, 50, 44, 0.1);
 
   /* Priority now reads as a traffic light, by request. */
   --priority-high: #b4322c;
@@ -68,6 +69,7 @@
     --accent: #e5a03f;
     --accent-soft: rgba(229, 160, 63, 0.14);
     --overdue: #e2706a;
+    --overdue-soft: rgba(226, 112, 106, 0.15);
     --priority-high: #e2706a;
     --priority-medium: #e5a03f;
     --priority-low: #6fbf85;
@@ -91,6 +93,7 @@
   --accent: #e5a03f;
   --accent-soft: rgba(229, 160, 63, 0.14);
   --overdue: #e2706a;
+  --overdue-soft: rgba(226, 112, 106, 0.15);
   --priority-high: #e2706a;
   --priority-medium: #e5a03f;
   --priority-low: #6fbf85;
@@ -230,8 +233,7 @@ button {
 
 .add-form {
   display: grid;
-  /* The tag field gets a floor so the estimate select cannot squeeze it out. */
-  grid-template-columns: auto auto auto minmax(9rem, 1fr) auto;
+  grid-template-columns: auto auto auto 1fr auto;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.5rem 0.625rem;
@@ -266,6 +268,7 @@ button {
 
 .add-form .primary-button {
   grid-column: 5;
+  grid-row: 2;
 }
 
 .field-priority {
@@ -294,11 +297,17 @@ button {
 
 .field-tags {
   min-width: 0;
+  grid-column: 1 / -1;
+  grid-row: 3;
 }
 
 .field-tags input {
   font-size: 0.875rem;
   color: var(--ink);
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0 0.5rem;
+  margin-top: 0.125rem;
 }
 
 .field-tags input::placeholder {
@@ -428,9 +437,15 @@ button {
   align-items: flex-start;
   gap: 0.875rem;
   padding: 0.875rem 0.75rem;
+  padding-left: calc(0.75rem - 3px);
+  border-left: 3px solid var(--priority-medium);
   border-radius: var(--radius);
   transition: background-color 0.15s ease;
 }
+
+.task[data-priority="high"] { border-left-color: var(--priority-high); }
+.task[data-priority="medium"] { border-left-color: var(--priority-medium); }
+.task[data-priority="low"] { border-left-color: var(--priority-low); }
 
 .task + .task::before {
   content: "";
@@ -554,32 +569,41 @@ button {
   background: currentColor;
 }
 
-.badge-priority[data-priority="high"] {
-  color: var(--ink-2);
-}
-
-.badge-priority[data-priority="medium"] {
+.badge-priority {
   color: var(--ink-3);
 }
 
-/* Low priority is the default state - a hollow dot, and no visual weight. */
-.badge-priority[data-priority="low"] {
-  color: var(--ink-3);
-}
+/* The dot carries the priority hue; the word stays quiet so the row does not
+   turn into three competing colours. */
+.badge-priority[data-priority="high"]::before { background: var(--priority-high); }
+.badge-priority[data-priority="medium"]::before { background: var(--priority-medium); }
+.badge-priority[data-priority="low"]::before { background: var(--priority-low); }
 
-.badge-priority[data-priority="low"]::before {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px currentColor;
+.badge-due {
+  padding: 0.0625rem 0.4375rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .badge-overdue {
+  background: var(--overdue-soft);
   color: var(--overdue);
-  font-weight: 600;
 }
 
 .badge-today {
+  background: var(--accent-soft);
   color: var(--accent);
-  font-weight: 600;
+}
+
+.badge-future {
+  background: var(--surface-hover);
+  color: var(--ink-3);
+}
+
+.task.is-done .badge-future,
+.task.is-done .badge-priority {
+  opacity: 0.7;
 }
 
 .task.is-done .task-meta,
@@ -722,6 +746,15 @@ button {
 
   .add-form .primary-button {
     grid-column: 2;
+    grid-row: 3;
+  }
+
+  .field-tags {
+    grid-row: 4;
+  }
+
+  .tag-chips {
+    grid-row: 5;
   }
 
   .field input[type="date"] {
@@ -1342,6 +1375,7 @@ button {
 
 .tag-chips {
   grid-column: 1 / -1;
+  grid-row: 4;
   list-style: none;
   display: flex;
   flex-wrap: wrap;
@@ -1385,12 +1419,54 @@ button {
 }
 
 @media (max-width: 34rem) {
-  /* The tag field needs a full line of its own once the row wraps. */
-  .field-tags {
-    grid-column: 1 / -1;
-  }
-
   .field-priority {
     padding-left: 0.25rem;
   }
+}
+
+/* Task tags ---------------------------------------------------------------
+   Descriptive metadata, sitting under the title and its meta line. */
+
+.task-tags {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3125rem;
+  margin: 0.125rem 0 0;
+  padding: 0;
+}
+
+.task-tag {
+  padding: 0.0625rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  color: var(--ink-2);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+.task.is-done .task-tag {
+  opacity: 0.6;
+}
+
+/* A hovered row raises its own surface, so the flat chips need to lift too. */
+.task:hover .task-tag,
+.task:focus-within .task-tag,
+.task:hover .badge-future,
+.task:focus-within .badge-future {
+  background: var(--surface);
+}
+
+/* Tab counts -------------------------------------------------------------- */
+
+.filter-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.filter[aria-pressed="true"] .filter-count {
+  color: var(--ink-2);
 }
