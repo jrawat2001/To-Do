@@ -16,6 +16,11 @@
   // Below this many sessions the overrun ratio is too noisy to suggest from.
   var MIN_SESSIONS_FOR_HINT = 3;
 
+  // Tags are descriptive metadata, so they are bounded rather than free-form:
+  // long or numerous tags would wreck the row layout.
+  var TAG_MAX_LENGTH = 24;
+  var TAGS_PER_TASK = 6;
+
   var els = {
     form: document.getElementById('add-form'),
     text: document.getElementById('task-text'),
@@ -100,15 +105,45 @@
       id: typeof task.id === 'string' && task.id ? task.id : createId(),
       text: task.text,
       done: task.done === true,
-      dueDate: typeof task.dueDate === 'string' ? task.dueDate : '',
+      dueDate: normalizeDueDate(task.dueDate),
       priority: PRIORITY_RANK[task.priority] === undefined ? 'medium' : task.priority,
       createdAt: typeof task.createdAt === 'number' ? task.createdAt : Date.now(),
       estimateMin: typeof task.estimateMin === 'number' && task.estimateMin > 0 ? task.estimateMin : null,
       spentSec: typeof task.spentSec === 'number' && task.spentSec > 0 ? task.spentSec : 0,
       // How much of spentSec has already been written to the log, so a task
       // toggled done twice is not counted twice.
-      loggedSec: typeof task.loggedSec === 'number' && task.loggedSec > 0 ? task.loggedSec : 0
+      loggedSec: typeof task.loggedSec === 'number' && task.loggedSec > 0 ? task.loggedSec : 0,
+      tags: normalizeTags(task.tags)
     };
+  }
+
+  // Stored as an ISO date string (YYYY-MM-DD) or null. Older saves used '' for
+  // "unset", which normalizes to null here.
+  function normalizeDueDate(value) {
+    if (typeof value !== 'string') return null;
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  }
+
+  // Trimmed, de-duplicated case-insensitively, and capped. Order is preserved
+  // so tags read back the way they were typed.
+  function normalizeTags(value) {
+    if (!Array.isArray(value)) return [];
+
+    var seen = {};
+    var out = [];
+
+    for (var i = 0; i < value.length && out.length < TAGS_PER_TASK; i++) {
+      if (typeof value[i] !== 'string') continue;
+      var tag = value[i].trim().slice(0, TAG_MAX_LENGTH);
+      if (!tag) continue;
+
+      var key = tag.toLowerCase();
+      if (seen[key]) continue;
+      seen[key] = true;
+      out.push(tag);
+    }
+
+    return out;
   }
 
   function saveTasks() {
@@ -236,17 +271,18 @@
 
   /* Mutations ------------------------------------------------------------- */
 
-  function addTask(text, dueDate, priority, estimateMin) {
+  function addTask(text, dueDate, priority, estimateMin, tags) {
     tasks.push({
       id: createId(),
       text: text,
       done: false,
-      dueDate: dueDate,
+      dueDate: normalizeDueDate(dueDate),
       priority: priority,
       createdAt: Date.now(),
       estimateMin: estimateMin || null,
       spentSec: 0,
-      loggedSec: 0
+      loggedSec: 0,
+      tags: normalizeTags(tags)
     });
     commit();
   }
