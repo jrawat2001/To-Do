@@ -5,9 +5,9 @@ step, no server, no `npm install` — a handful of static files and a
 `localStorage` key.
 
 Warm neutrals carry the structure and a single amber accent marks what is
-interactive or imminent. Color is never decorative: priority reads as ink tone
-and weight, so the only alarming color in the interface is a genuinely overdue
-task. Headings are set in Fraunces; everything else uses the system UI font.
+interactive or imminent. Color is never decorative: priority uses a red / amber
+/ green scale kept to small marks — a dot and a 3px rule — so the rows stay
+calm. Headings are set in Fraunces; everything else uses the system UI font.
 
 **Live at:** https://jrawat2001.github.io/To-Do/
 
