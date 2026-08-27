@@ -43,7 +43,7 @@ python3 -m http.server 8000
   "Clear completed" action that appears only when something is done.
 - **Due dates** — tasks show a `Today` badge on the day they're due and an
   `Overdue` badge once the date has passed while still incomplete.
-- **Priority** — Low / Medium / High, shown as a colored left edge and a badge.
+- **Priority** — Low / Medium / High, shown as a dot and, for high priority, heavier text.
 - **Sorting** — incomplete first, then by priority, then by soonest due date
   (undated tasks last), then by creation time.
 - **Dark mode** — toggle in the header. Follows your OS preference on first visit
