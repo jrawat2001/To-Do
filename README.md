@@ -114,6 +114,21 @@ inventing hours of focus that never happened. A running timer survives a
 reload; stopping early keeps the time you spent but logs nothing, since a
 half-finished task says nothing useful about the estimate.
 
+## The chime
+
+Both timers ring when they end: a soft three-note figure (A4 · D5 · F#5) with a
+long decay, repeated three times over about five seconds. It is synthesised with
+the Web Audio API rather than shipped as an audio file, so it costs no bytes and
+works offline.
+
+The speaker icon in the header mutes it, and the choice persists. Turning it
+back on plays the chime once so you can hear what you are agreeing to. Dealing
+with the timer — Done, an extension, Stop, Reset — silences it immediately.
+
+Browsers refuse to play audio until the page has been interacted with, so the
+chime stays silent if a timer expires on a page nobody has touched since it
+loaded. The visual alert always appears regardless.
+
 ## Getting reminders on your phone
 
 The app has no server, so it cannot push anything anywhere — and no web app can
@@ -141,8 +156,8 @@ RFC 5545 scale (high 1, medium 5, low 9).
 
 Tasks are saved to `localStorage` under `todo.tasks.v1`, the theme under
 `todo.theme`, a running task timer under `todo.timer.v1`, the standalone timer under
-`todo.standalone.v1`, and focus history under `todo.focuslog.v1` (capped at
-200 sessions). Keeping them separate means
+`todo.standalone.v1`, the chime preference under `todo.sound`, and focus history
+under `todo.focuslog.v1` (capped at 200 sessions). Keeping them separate means
 clearing your tasks never resets your theme or your history. Everything stays on
 your machine — nothing is sent anywhere. If storage is unavailable (private
 browsing, blocked cookies), the app still runs; it just won't persist between

@@ -8,6 +8,7 @@
   var TIMER_KEY = 'todo.timer.v1';
   var LOG_KEY = 'todo.focuslog.v1';
   var STANDALONE_KEY = 'todo.standalone.v1';
+  var SOUND_KEY = 'todo.sound';
   var PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
   var PRIORITY_LABEL = { high: 'High', medium: 'Medium', low: 'Low' };
 
@@ -86,7 +87,8 @@
     editTags: document.getElementById('edit-tags'),
     editChips: document.getElementById('edit-chips'),
     editPush: document.getElementById('edit-push'),
-    editCancel: document.getElementById('edit-cancel')
+    editCancel: document.getElementById('edit-cancel'),
+    soundToggle: document.getElementById('sound-toggle')
   };
 
   var tasks = loadTasks();
@@ -100,6 +102,9 @@
   // The same, for the edit dialog, plus the task it is open on.
   var editTags = [];
   var lastEscalation = '';
+  var soundOn = loadSound();
+  var audio = null;
+  var ringing = [];
   var ticker = null;
   var baseTitle = document.title;
 
@@ -486,6 +491,7 @@
   // Banks elapsed time onto the task and tears the session down.
   function endFocusSession() {
     if (!timer) return;
+    stopChime();
     advanceTimer();
 
     var task = findTask(timer.taskId);
@@ -509,6 +515,7 @@
   // time counted in this session - the fix for a timer started by accident.
   function resetFocus() {
     if (!timer) return;
+    stopChime();
     var task = findTask(timer.taskId);
     if (!task) return;
 
@@ -545,6 +552,7 @@
 
   function extendFocus(minutes) {
     if (!timer) return;
+    stopChime();
     var ms = minutes * 60000;
     timer.remainingMs += ms;
     timer.plannedMs += ms;
@@ -609,7 +617,10 @@
     updateTitle();
     if (!anythingRunning()) stopTicker();
 
-    if (standaloneJustExpired) openTimerView();
+    if (standaloneJustExpired) {
+      playChime();
+      openTimerView();
+    }
     if (focusJustExpired) openTimesUp();
   }
 
@@ -653,6 +664,7 @@
 
   function pauseStandalone() {
     if (!standalone || !standalone.running) return;
+    stopChime();
     advanceStandalone();
     standalone.running = false;
     saveStandalone();
@@ -673,6 +685,7 @@
 
   // Clears the timer entirely and returns to the duration picker.
   function resetStandalone() {
+    stopChime();
     if (standalone) {
       var minutes = Math.round(standalone.plannedMs / 60000);
       els.timerHours.value = String(Math.floor(minutes / 60));
@@ -789,6 +802,7 @@
       : formatMinutes(task.estimateMin) + ' up.';
 
     renderFocus();
+    playChime();
     openDialog(els.timesUp);
   }
 
@@ -844,6 +858,125 @@
     var full = draftTags.length >= TAGS_PER_TASK;
     els.tagInput.disabled = full;
     els.tagInput.placeholder = full ? 'Tag limit reached' : 'Add a tag\u2026';
+  }
+
+  /* Chime ------------------------------------------------------------------
+     Synthesised rather than shipped: a few sine partials cost no bytes, work
+     offline, and can be tuned. A struck-bowl shape - soft attack, long decay,
+     a quiet octave above for shimmer - rings three times and stops itself.
+
+     Browsers refuse audio until the page has been interacted with, so the
+     context is opened on the first gesture and kept warm; a timer that expires
+     on a page nobody has touched simply stays silent. */
+
+  var CHIME_NOTES = [440, 587.33, 739.99];   // A4, D5, F#5 - a calm rising triad
+  var CHIME_REPEATS = 3;
+  var CHIME_NOTE_GAP = 0.28;
+  var CHIME_DECAY = 1.8;
+  var CHIME_CYCLE = 2.2;
+
+  function loadSound() {
+    try {
+      return localStorage.getItem(SOUND_KEY) !== 'off';
+    } catch (e) {
+      return true;
+    }
+  }
+
+  function saveSound() {
+    try {
+      localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off');
+    } catch (e) {
+      // A preference that cannot persist still holds for this session.
+    }
+  }
+
+  function ensureAudio() {
+    var Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return null;
+
+    if (!audio) {
+      try {
+        audio = new Ctor();
+      } catch (e) {
+        return null;
+      }
+    }
+    // Autoplay policy parks the context until a gesture unlocks it.
+    if (audio.state === 'suspended' && audio.resume) audio.resume();
+    return audio;
+  }
+
+  function stopChime() {
+    if (!audio) return;
+    var now = audio.currentTime;
+    ringing.forEach(function (voice) {
+      try {
+        voice.gain.gain.cancelScheduledValues(now);
+        voice.gain.gain.setValueAtTime(voice.gain.gain.value || 0.0001, now);
+        voice.gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+        voice.osc.stop(now + 0.1);
+      } catch (e) {
+        // Already finished; nothing to silence.
+      }
+    });
+    ringing = [];
+  }
+
+  function scheduleVoice(ctx, dest, freq, at, peak) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+
+    osc.type = 'sine';
+    // Set outright rather than scheduled: each oscillator plays one note and is
+    // then discarded, so there is nothing to automate.
+    osc.frequency.value = freq;
+
+    // Exponential ramps cannot touch zero, hence the near-silent floor.
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(peak, at + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + CHIME_DECAY);
+
+    osc.connect(gain);
+    gain.connect(dest);
+    osc.start(at);
+    osc.stop(at + CHIME_DECAY + 0.05);
+
+    ringing.push({ osc: osc, gain: gain });
+  }
+
+  function playChime(repeats) {
+    if (!soundOn) return;
+    var ctx = ensureAudio();
+    if (!ctx) return;
+
+    stopChime();
+
+    // A gentle lowpass keeps the partials from getting glassy.
+    var master = ctx.createGain();
+    master.gain.value = 0.55;
+    var tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = 3200;
+    master.connect(tone);
+    tone.connect(ctx.destination);
+
+    var start = ctx.currentTime + 0.05;
+    var cycles = repeats === undefined ? CHIME_REPEATS : repeats;
+
+    for (var cycle = 0; cycle < cycles; cycle++) {
+      for (var i = 0; i < CHIME_NOTES.length; i++) {
+        var at = start + cycle * CHIME_CYCLE + i * CHIME_NOTE_GAP;
+        scheduleVoice(ctx, master, CHIME_NOTES[i], at, 0.5);
+        // A quiet octave above gives the strike its bell colour.
+        scheduleVoice(ctx, master, CHIME_NOTES[i] * 2, at, 0.12);
+      }
+    }
+  }
+
+  function renderSoundToggle() {
+    els.soundToggle.setAttribute('aria-pressed', String(soundOn));
+    els.soundToggle.dataset.state = soundOn ? 'on' : 'off';
   }
 
   /* Estimate learning ------------------------------------------------------
@@ -1685,6 +1818,24 @@
   els.focusReset.addEventListener('click', resetFocus);
   els.focusStop.addEventListener('click', stopFocus);
 
+  els.soundToggle.addEventListener('click', function () {
+    soundOn = !soundOn;
+    saveSound();
+    renderSoundToggle();
+    // Turning it on plays once, so the choice is audible rather than abstract.
+    if (soundOn) playChime(1);
+    else stopChime();
+  });
+
+  // The first gesture anywhere unlocks audio, so a timer expiring later can
+  // actually sound. Once is enough.
+  ['pointerdown', 'keydown'].forEach(function (type) {
+    window.addEventListener(type, function primeAudio() {
+      window.removeEventListener(type, primeAudio);
+      if (soundOn) ensureAudio();
+    }, { once: false });
+  });
+
   els.timerOpen.addEventListener('click', openTimerView);
   els.timerClose.addEventListener('click', function () {
     // Closing the view never cancels the timer; it keeps running behind it.
@@ -1848,6 +1999,7 @@
   }
 
   updatePriorityDot();
+  renderSoundToggle();
   renderDraftTags();
   render();
   renderStandalone();
@@ -1871,6 +2023,9 @@
   }, 15000);
 
   if (anythingRunning()) startTicker();
-  if (standalone && standalone.expired) openTimerView();
+  if (standalone && standalone.expired) {
+    playChime();
+    openTimerView();
+  }
   if (timer && timer.expired) openTimesUp();
 })();

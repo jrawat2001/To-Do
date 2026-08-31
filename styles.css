@@ -1705,3 +1705,21 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* Sound toggle ------------------------------------------------------------- */
+
+.icon-sound-off {
+  display: none;
+}
+
+#sound-toggle[data-state="off"] .icon-sound-on {
+  display: none;
+}
+
+#sound-toggle[data-state="off"] .icon-sound-off {
+  display: block;
+}
+
+#sound-toggle[data-state="off"] {
+  color: var(--ink-3);
+}
