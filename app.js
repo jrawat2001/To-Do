@@ -88,7 +88,9 @@
     editChips: document.getElementById('edit-chips'),
     editPush: document.getElementById('edit-push'),
     editCancel: document.getElementById('edit-cancel'),
-    soundToggle: document.getElementById('sound-toggle')
+    soundToggle: document.getElementById('sound-toggle'),
+    timesUpSilence: document.getElementById('times-up-silence'),
+    timerSilence: document.getElementById('timer-silence')
   };
 
   var tasks = loadTasks();
@@ -105,6 +107,11 @@
   var soundOn = loadSound();
   var audio = null;
   var ringing = [];
+  var chimeBus = null;
+  var chimeActive = false;
+  var chimeUntil = 0;
+  var chimeNextAt = 0;
+  var chimePump = null;
   var ticker = null;
   var baseTitle = document.title;
 
@@ -870,10 +877,15 @@
      on a page nobody has touched simply stays silent. */
 
   var CHIME_NOTES = [440, 587.33, 739.99];   // A4, D5, F#5 - a calm rising triad
-  var CHIME_REPEATS = 3;
   var CHIME_NOTE_GAP = 0.28;
   var CHIME_DECAY = 1.8;
   var CHIME_CYCLE = 2.2;
+  // Rings until silenced, or until this much time has gone by.
+  var CHIME_DURATION_MS = 120000;
+  // Cycles are scheduled a few seconds ahead and topped up, rather than all
+  // 55 of them at once: fewer live nodes, and silencing takes effect at once.
+  var CHIME_LOOKAHEAD = 4;
+  var CHIME_PUMP_MS = 1500;
 
   function loadSound() {
     try {
@@ -908,6 +920,17 @@
   }
 
   function stopChime() {
+    if (chimePump) {
+      clearTimeout(chimePump);
+      chimePump = null;
+    }
+    chimeUntil = 0;
+
+    if (chimeActive) {
+      chimeActive = false;
+      renderSilence();
+    }
+
     if (!audio) return;
     var now = audio.currentTime;
     ringing.forEach(function (voice) {
@@ -942,10 +965,52 @@
     osc.start(at);
     osc.stop(at + CHIME_DECAY + 0.05);
 
-    ringing.push({ osc: osc, gain: gain });
+    var voice = { osc: osc, gain: gain };
+    // Drop finished voices so a two-minute ring does not accumulate hundreds.
+    osc.onended = function () {
+      var at = ringing.indexOf(voice);
+      if (at !== -1) ringing.splice(at, 1);
+    };
+
+    ringing.push(voice);
   }
 
-  function playChime(repeats) {
+  function scheduleCycle(ctx, at) {
+    for (var i = 0; i < CHIME_NOTES.length; i++) {
+      var noteAt = at + i * CHIME_NOTE_GAP;
+      scheduleVoice(ctx, chimeBus, CHIME_NOTES[i], noteAt, 0.5);
+      // A quiet octave above gives the strike its bell colour.
+      scheduleVoice(ctx, chimeBus, CHIME_NOTES[i] * 2, noteAt, 0.12);
+    }
+  }
+
+  // Tops the schedule up a few seconds at a time until the ring is due to end.
+  function pumpChime() {
+    chimePump = null;
+    var ctx = audio;
+    if (!ctx || !chimeActive) return;
+
+    while (chimeNextAt < ctx.currentTime + CHIME_LOOKAHEAD) {
+      if (Date.now() + (chimeNextAt - ctx.currentTime) * 1000 >= chimeUntil) {
+        // Everything up to the deadline is scheduled. Let the tail ring out,
+        // then drop the ringing state so the Silence control leaves with the
+        // sound rather than lingering over a chime that already finished.
+        var tailMs = Math.max(0, (chimeNextAt - ctx.currentTime + CHIME_DECAY) * 1000);
+        chimePump = setTimeout(function () {
+          chimePump = null;
+          chimeActive = false;
+          renderSilence();
+        }, tailMs);
+        return;
+      }
+      scheduleCycle(ctx, chimeNextAt);
+      chimeNextAt += CHIME_CYCLE;
+    }
+
+    chimePump = setTimeout(pumpChime, CHIME_PUMP_MS);
+  }
+
+  function playChime(cycles) {
     if (!soundOn) return;
     var ctx = ensureAudio();
     if (!ctx) return;
@@ -960,18 +1025,29 @@
     tone.frequency.value = 3200;
     master.connect(tone);
     tone.connect(ctx.destination);
+    chimeBus = master;
 
-    var start = ctx.currentTime + 0.05;
-    var cycles = repeats === undefined ? CHIME_REPEATS : repeats;
+    chimeNextAt = ctx.currentTime + 0.05;
 
-    for (var cycle = 0; cycle < cycles; cycle++) {
-      for (var i = 0; i < CHIME_NOTES.length; i++) {
-        var at = start + cycle * CHIME_CYCLE + i * CHIME_NOTE_GAP;
-        scheduleVoice(ctx, master, CHIME_NOTES[i], at, 0.5);
-        // A quiet octave above gives the strike its bell colour.
-        scheduleVoice(ctx, master, CHIME_NOTES[i] * 2, at, 0.12);
+    // A fixed count is the preview; otherwise it rings until silenced.
+    if (cycles) {
+      for (var i = 0; i < cycles; i++) {
+        scheduleCycle(ctx, chimeNextAt);
+        chimeNextAt += CHIME_CYCLE;
       }
+      return;
     }
+
+    chimeActive = true;
+    chimeUntil = Date.now() + CHIME_DURATION_MS;
+    renderSilence();
+    pumpChime();
+  }
+
+  // The Silence controls exist only while something is actually ringing.
+  function renderSilence() {
+    els.timesUpSilence.hidden = !chimeActive;
+    els.timerSilence.hidden = !chimeActive;
   }
 
   function renderSoundToggle() {
@@ -1836,9 +1912,14 @@
     }, { once: false });
   });
 
+  els.timesUpSilence.addEventListener('click', stopChime);
+  els.timerSilence.addEventListener('click', stopChime);
+
   els.timerOpen.addEventListener('click', openTimerView);
   els.timerClose.addEventListener('click', function () {
     // Closing the view never cancels the timer; it keeps running behind it.
+    // A chime is different: dismissing the alert should quiet it.
+    stopChime();
     closeDialog(els.timerView);
   });
 

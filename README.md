@@ -117,13 +117,22 @@ half-finished task says nothing useful about the estimate.
 ## The chime
 
 Both timers ring when they end: a soft three-note figure (A4 · D5 · F#5) with a
-long decay, repeated three times over about five seconds. It is synthesised with
-the Web Audio API rather than shipped as an audio file, so it costs no bytes and
-works offline.
+long decay, repeating every 2.2 seconds. It is synthesised with the Web Audio
+API rather than shipped as an audio file, so it costs no bytes and works
+offline.
 
-The speaker icon in the header mutes it, and the choice persists. Turning it
-back on plays the chime once so you can hear what you are agreeing to. Dealing
-with the timer — Done, an extension, Stop, Reset — silences it immediately.
+It keeps ringing for **two minutes** unless you stop it — long enough to be
+heard from another room — then stops on its own. Cycles are scheduled a few
+seconds ahead and topped up rather than queued all at once, so silencing takes
+effect immediately instead of after a backlog of notes drains.
+
+**Silence the chime** appears on the alert while it is ringing: it quiets the
+sound but leaves the decision open, so you can stop the noise before choosing
+Done or an extension. Dealing with the timer any other way — Done, an
+extension, Stop, Reset, closing the timer view — also silences it.
+
+The speaker icon in the header mutes it altogether, and the choice persists.
+Turning it back on plays the chime once so you can hear what you are agreeing to.
 
 Browsers refuse to play audio until the page has been interacted with, so the
 chime stays silent if a timer expires on a page nobody has touched since it

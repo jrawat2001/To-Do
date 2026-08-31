@@ -1723,3 +1723,31 @@ button {
 #sound-toggle[data-state="off"] {
   color: var(--ink-3);
 }
+
+/* Silence control ---------------------------------------------------------
+   Only present while something is actually ringing. */
+
+.silence-button {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.625rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.silence-button:hover {
+  background: var(--surface-hover);
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
+.timer-view .silence-button {
+  width: auto;
+  margin-top: 0;
+}
