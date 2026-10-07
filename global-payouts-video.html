@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Global Payouts Briefing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<style>
+/* Layout: a fixed 1280x720 "video" canvas scaled to fit, captions and controls beneath it, sources below. Deliberately single-theme (navy + white). */
+:root {
+  --navy: #0E2240;
+  --navy-2: #173158;
+  --navy-3: #24477A;
+  --paper: #FFFFFF;
+  --mist: #EEF2F8;
+  --line: #CBD5E4;
+  --muted: #5B6B84;
+  --accent: #2F6FED;
+  --accent-soft: #DCE7FD;
+  --on-navy-muted: #A9B8D2;
+  --display: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--navy); color: var(--paper); }
+body { font-family: var(--sans); margin: 0; padding-inline: 16px; padding-block: 24px 48px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.head h1 { font-family: var(--display); font-weight: 500; font-size: 1.35rem; margin: 0; letter-spacing: .01em; }
+.head span { font-family: var(--mono); font-size: .75rem; color: var(--on-navy-muted); letter-spacing: .06em; text-transform: uppercase; }
+
+/* ---------- player ---------- */
+.frame { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; overflow: hidden; background: var(--paper); border-radius: 6px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.canvas { position: absolute; top: 0; left: 0; width: 1280px; height: 720px; transform-origin: 0 0; color: var(--navy); background: var(--paper); font-family: var(--sans); }
+.scene { position: absolute; inset: 0; padding: 56px 72px 48px; opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility 0s linear .6s; display: flex; flex-direction: column; gap: 26px; }
+.scene.active { opacity: 1; visibility: visible; transition: opacity .6s ease, visibility 0s; }
+.scene.dark { background: var(--navy); color: var(--paper); }
+.eyebrow { font-family: var(--mono); font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); display: flex; gap: 14px; align-items: center; }
+.eyebrow b { font-weight: 500; color: var(--muted); }
+.dark .eyebrow b { color: var(--on-navy-muted); }
+.dark .eyebrow { color: #7FA6F5; }
+h2 { font-family: var(--display); font-weight: 500; font-size: 50px; line-height: 1.05; margin: 0; letter-spacing: -.01em; text-wrap: balance; max-width: 1050px; }
+.r { opacity: 0; transform: translateY(14px); transition: opacity .55s ease, transform .55s ease; }
+.r.on { opacity: 1; transform: none; }
+.mono { font-family: var(--mono); }
+.muted { color: var(--muted); }
+
+/* scene 0: title */
+.title-scene { justify-content: center; gap: 22px; }
+.title-scene h2 { font-size: 92px; max-width: 900px; }
+.title-scene p { font-size: 26px; color: var(--on-navy-muted); margin: 0; max-width: 760px; line-height: 1.4; }
+.title-scene .rule { width: 120px; height: 3px; background: var(--accent); }
+.title-scene .meta { font-family: var(--mono); font-size: 15px; color: var(--on-navy-muted); letter-spacing: .08em; text-transform: uppercase; }
+.flowlines { position: absolute; right: 64px; top: 120px; width: 380px; height: 480px; }
+
+/* scene 1: payout flow */
+.ends { display: flex; justify-content: space-between; align-items: center; font-size: 19px; }
+.ends .party { display: flex; flex-direction: column; gap: 4px; }
+.ends .party small { font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.ends .amt { font-family: var(--mono); font-size: 30px; font-weight: 500; color: var(--accent); }
+.track { position: relative; height: 26px; margin: 0 92px; }
+.track .ln { position: absolute; left: 0; right: 0; top: 12px; height: 2px; background: var(--line); }
+.track .fill { position: absolute; left: 0; top: 12px; height: 2px; background: var(--accent); width: 0; transition: width .9s ease; }
+.track .coin { position: absolute; top: 3px; left: 0; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 6px var(--accent-soft); transition: left .9s ease; }
+.stations { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+.st { border: 1.5px solid var(--line); border-radius: 8px; padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 10px; min-height: 300px; transition: border-color .4s, background .4s, opacity .55s, transform .55s; }
+.st .n { font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: .1em; }
+.st h3 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 30px; }
+.st p { margin: 0; font-size: 16px; line-height: 1.45; color: var(--muted); }
+.st.cur { border-color: var(--accent); background: #F6F9FF; }
+.st.cur .n { color: var(--accent); }
+.opts { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.opts span { font-family: var(--mono); font-size: 13px; padding: 5px 8px; border-radius: 4px; background: var(--mist); color: var(--navy); }
+.opts span.pick { background: var(--accent); color: var(--paper); transition: background .4s, color .4s; }
+.fx { font-family: var(--mono); font-size: 15px; color: var(--navy); background: var(--mist); padding: 8px 10px; border-radius: 4px; }
+.done { font-family: var(--mono); font-size: 14px; color: var(--navy); display: flex; flex-direction: column; gap: 4px; }
+
+/* scene 2: comparison table */
+.cmp { display: grid; grid-template-columns: 210px 1fr 1fr; border-top: 2px solid var(--navy); }
+.cmp > div { padding: 15px 18px; border-bottom: 1px solid var(--line); font-size: 19px; line-height: 1.35; }
+.cmp .hd { font-family: var(--mono); font-size: 14px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding-block: 12px; }
+.cmp .hd.out { color: var(--accent); }
+.cmp .k { font-family: var(--mono); font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 19px; }
+.cmp .o { background: #F6F9FF; font-weight: 500; }
+
+/* scene 3: customers */
+.cust { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.cust div { background: var(--mist); border-radius: 6px; padding: 16px 18px; font-size: 19px; display: flex; flex-direction: column; gap: 4px; }
+.cust small { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.why { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; border-top: 2px solid var(--navy); padding-top: 20px; }
+.why div { display: flex; flex-direction: column; gap: 8px; }
+.why b { font-family: var(--display); font-weight: 600; font-size: 26px; }
+.why p { margin: 0; font-size: 17px; line-height: 1.45; color: var(--muted); }
+
+/* scene 4: value chain */
+.chain { display: grid; grid-template-columns: 1fr 34px 1.2fr 34px 1.35fr 34px 1fr 34px 0.9fr; align-items: stretch; }
+.node { border: 1.5px solid var(--navy); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px; background: var(--paper); }
+.node h4 { margin: 0; font-family: var(--display); font-size: 24px; font-weight: 600; }
+.node p { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
+.node .tag { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
+.node.hl { background: var(--navy); color: var(--paper); }
+.node.hl p { color: var(--on-navy-muted); }
+.node.hl .tag { color: #7FA6F5; }
+.arrow { display: flex; align-items: center; justify-content: center; }
+.arrow svg { width: 26px; height: 14px; }
+.lane { border: 1.5px dashed var(--accent); border-radius: 8px; padding: 14px 18px; display: flex; gap: 20px; align-items: center; margin-left: 217px; }
+.lane .tag { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.lane p { margin: 0; font-size: 16px; line-height: 1.4; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.stat { display: flex; gap: 16px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 12px; }
+.stat .big { font-family: var(--display); font-size: 40px; font-weight: 600; color: var(--accent); white-space: nowrap; }
+.stat p { margin: 0; font-size: 16px; color: var(--muted); line-height: 1.4; }
+
+/* scenes 5-6: landscape */
+.tier1 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+.co { border-top: 3px solid var(--navy); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.co h4 { margin: 0; font-family: var(--display); font-size: 27px; font-weight: 600; line-height: 1.1; }
+.co .what { font-size: 16px; line-height: 1.45; color: var(--muted); margin: 0; }
+.co .fact { font-family: var(--mono); font-size: 13.5px; line-height: 1.45; background: var(--mist); padding: 8px 10px; border-radius: 4px; color: var(--navy); }
+.tiers { display: grid; grid-template-columns: 1fr 1.3fr 1.6fr; gap: 26px; flex: 1; }
+.tier { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tier > .label { font-family: var(--mono); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); border-bottom: 2px solid var(--navy); padding-bottom: 8px; }
+.row { display: grid; grid-template-columns: 112px 1fr; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.row b { font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1.15; }
+.row span { font-size: 15px; line-height: 1.4; color: var(--muted); }
+.row span em { font-style: normal; font-family: var(--mono); font-size: 13.5px; color: var(--navy); }
+
+/* scene 7: economics */
+.econ { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; flex: 1; }
+.streams { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
+.stream { background: var(--mist); border-radius: 6px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.stream b { font-family: var(--display); font-size: 25px; font-weight: 600; }
+.stream p { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
+.chartbox { display: flex; flex-direction: column; gap: 12px; }
+.chartbox .cap { font-family: var(--mono); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.stack { display: flex; height: 54px; border-radius: 4px; overflow: hidden; }
+.stack div { display: flex; align-items: center; padding-left: 12px; font-family: var(--mono); font-size: 14px; color: var(--paper); white-space: nowrap; }
+.stack .a { background: var(--navy); width: 78%; }
+.stack .b { background: var(--accent); width: 22%; }
+.legend { display: flex; justify-content: space-between; font-size: 15px; color: var(--muted); gap: 12px; }
+.legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; }
+.drivers { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.drivers li { font-size: 17px; line-height: 1.35; padding-left: 22px; position: relative; }
+.drivers li::before { content: ""; position: absolute; left: 0; top: 9px; width: 10px; height: 2px; background: var(--accent); }
+
+/* scene 8: trends */
+.trends { display: flex; flex-direction: column; gap: 0; border-top: 2px solid var(--navy); }
+.trend { display: grid; grid-template-columns: 60px 300px 1fr; gap: 16px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.trend .n { font-family: var(--mono); font-size: 18px; color: var(--accent); }
+.trend b { font-family: var(--display); font-size: 29px; font-weight: 600; }
+.trend p { margin: 0; font-size: 17px; line-height: 1.4; color: var(--muted); }
+
+/* scene 9: deals */
+.deals { display: grid; grid-template-columns: 1.6fr 1fr; gap: 40px; flex: 1; }
+.bars { display: flex; flex-direction: column; gap: 9px; }
+.bar { display: grid; grid-template-columns: 250px 1fr; gap: 14px; align-items: center; }
+.bar .lbl { font-size: 15.5px; line-height: 1.2; }
+.bar .lbl small { display: block; font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 2px; }
+.bar .tr { position: relative; height: 26px; }
+.bar .fl { position: absolute; left: 0; top: 0; bottom: 0; background: var(--navy); border-radius: 2px; width: 0; transition: width 1s ease; }
+.bar .fl.ac { background: var(--accent); }
+.bar .eo { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, var(--accent-soft) 0 5px, var(--paper) 5px 9px); border: 1px solid var(--accent); border-left: 0; width: 0; transition: width 1s ease .4s; }
+.bar .v { position: absolute; top: 3px; font-family: var(--mono); font-size: 14px; white-space: nowrap; transition: left 1s ease; }
+.side { display: flex; flex-direction: column; gap: 14px; }
+.side .cap { font-family: var(--mono); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); border-bottom: 2px solid var(--navy); padding-bottom: 8px; }
+.side .it { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.side .it b { font-family: var(--display); font-size: 22px; font-weight: 600; }
+.side .it span { font-size: 15px; color: var(--muted); line-height: 1.35; }
+.footnote { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+
+/* scene 10: banker lens */
+.paths { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.path { border: 1.5px solid var(--line); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.path b { font-family: var(--display); font-size: 28px; font-weight: 600; }
+.path p { margin: 0; font-size: 16px; line-height: 1.4; color: var(--muted); }
+.path.hl { border-color: var(--navy); background: var(--navy); color: var(--paper); }
+.path.hl p { color: var(--on-navy-muted); }
+.value { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 22px; border-top: 2px solid var(--navy); padding-top: 14px; }
+.value .cap { grid-column: 1 / -1; font-family: var(--mono); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.value div { font-size: 17px; line-height: 1.35; padding-left: 26px; position: relative; }
+.value div::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--accent); font-weight: 600; }
+.warn { font-size: 17px; background: var(--mist); padding: 12px 16px; border-radius: 6px; }
+
+/* scene 11: recap */
+.recap { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--navy-3); }
+.recap div { display: grid; grid-template-columns: 70px 1fr; padding: 15px 0; border-bottom: 1px solid var(--navy-3); align-items: baseline; }
+.recap .n { font-family: var(--display); font-size: 40px; color: #7FA6F5; }
+.recap p { margin: 0; font-size: 25px; line-height: 1.35; }
+.recap p span { color: var(--on-navy-muted); }
+
+/* scene 12: sources */
+.srcs { columns: 3; column-gap: 34px; font-size: 12.5px; line-height: 1.38; }
+.srcs p { margin: 0 0 7px; break-inside: avoid; }
+.srcs a { color: var(--navy); text-decoration: none; border-bottom: 1px solid var(--line); }
+.srcs b { font-weight: 600; }
+
+/* big play overlay */
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; cursor: pointer; padding: 0; }
+.overlay[hidden] { display: none !important; }
+.overlay .pb { width: 92px; height: 92px; border-radius: 50%; background: var(--paper); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 40px rgba(0,0,0,.35); transition: transform .2s; }
+.overlay:hover .pb, .overlay:focus-visible .pb { transform: scale(1.06); }
+.overlay:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.overlay svg { width: 34px; height: 34px; margin-left: 6px; }
+
+/* captions + controls */
+.caption { min-height: 4.6em; font-size: clamp(16px, 2.1vw, 21px); line-height: 1.45; text-align: center; padding: 10px 8px 0; color: var(--paper); text-wrap: balance; }
+.caption .hint { color: var(--on-navy-muted); }
+.controls { display: flex; align-items: center; gap: 14px; }
+.btn { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--on-navy-muted); background: transparent; color: var(--paper); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.btn:hover { border-color: var(--paper); }
+.btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.btn svg { width: 16px; height: 16px; fill: currentColor; }
+.bar-wrap { flex: 1; min-width: 0; height: 28px; display: flex; align-items: center; cursor: pointer; position: relative; touch-action: none; }
+.bar-wrap:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.prog { position: relative; width: 100%; height: 5px; background: var(--navy-3); border-radius: 3px; }
+.prog .done-bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--paper); border-radius: 3px; width: 0; }
+.prog .knob { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--paper); left: 0; }
+.prog .tick { position: absolute; top: -2px; width: 2px; height: 9px; background: var(--navy); }
+.time { flex: none; font-family: var(--mono); font-size: 13px; color: var(--on-navy-muted); font-variant-numeric: tabular-nums; }
+.note { font-size: 13px; color: var(--on-navy-muted); line-height: 1.5; margin: 0; }
+.below { margin-top: 26px; border-top: 1px solid var(--navy-3); padding-top: 18px; }
+.below h2 { font-family: var(--display); font-size: 1.25rem; font-weight: 500; margin: 0 0 10px; color: var(--paper); }
+.below ol { margin: 0; padding-left: 1.4em; columns: 2; column-gap: 32px; font-size: 13.5px; line-height: 1.5; color: var(--on-navy-muted); }
+.below li { break-inside: avoid; margin-bottom: 6px; }
+.below a { color: var(--paper); text-decoration-color: var(--navy-3); }
+@media (max-width: 700px) { .below ol { columns: 1; } }
+/* larger type so each scene fills the 720px frame */
+.scene { padding: 64px 72px 52px; gap: 34px; }
+h2 { font-size: 56px; }
+.st { min-height: 340px; } .st p { font-size: 18px; }
+.cmp > div { padding: 19px 18px; font-size: 21px; }
+.cust div { padding: 20px; font-size: 22px; }
+.why b { font-size: 29px; } .why p { font-size: 19px; }
+.node h4 { font-size: 26px; } .node p { font-size: 17px; }
+.lane p { font-size: 18px; } .stat p { font-size: 18px; } .stat .big { font-size: 48px; }
+.co h4 { font-size: 30px; } .co .what { font-size: 19px; } .co .fact { font-size: 15.5px; }
+.row b { font-size: 24px; } .row span { font-size: 17px; } .row span em { font-size: 14.5px; }
+.stream { padding: 22px 20px; } .stream b { font-size: 28px; } .stream p { font-size: 17px; }
+.drivers li { font-size: 19px; }
+.trend { grid-template-columns: 60px 340px 1fr; padding: 20px 0; } .trend b { font-size: 32px; } .trend p { font-size: 19px; }
+.bars { gap: 14px; } .bar .lbl { font-size: 17px; } .bar .tr { height: 30px; } .bar .v { top: 5px; font-size: 15px; }
+.side .it b { font-size: 25px; } .side .it span { font-size: 17px; }
+.path b { font-size: 31px; } .path p { font-size: 18px; }
+.value div { font-size: 19px; } .warn { font-size: 19px; }
+.recap div { padding: 20px 0; } .recap p { font-size: 27px; }
+.srcs { font-size: 13.5px; }
+.title-scene h2 { font-size: 92px; }
+@media (prefers-reduced-motion: reduce) {
+  .scene, .r, .track .coin, .track .fill, .bar .fl, .bar .eo, .bar .v, .st { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="head">
+    <h1>Global Payouts Briefing</h1>
+    <span>Narrated · about 7 minutes · verified to Oct 2026</span>
+  </div>
+
+  <div class="frame" id="frame">
+    <div class="canvas" id="canvas">
+
+      <!-- 0 Title -->
+      <section class="scene dark title-scene active" data-scene="0">
+        <div class="eyebrow">Fintech &amp; payments primer</div>
+        <h2>Global Payouts</h2>
+        <div class="rule"></div>
+        <p>How money gets from platforms to the people they pay, who moves it, and where the market is heading.</p>
+        <div class="meta">Narrated · about 7 minutes · sources at the end</div>
+        <svg class="flowlines" viewBox="0 0 380 480" aria-hidden="true">
+          <g fill="none" stroke="#24477A" stroke-width="2">
+            <path d="M20 60 C 180 60, 200 240, 360 240"/>
+            <path d="M20 160 C 180 160, 200 240, 360 240"/>
+            <path d="M20 320 C 180 320, 200 240, 360 240"/>
+            <path d="M20 420 C 180 420, 200 240, 360 240"/>
+          </g>
+          <g fill="#2F6FED">
+            <circle cx="20" cy="60" r="6"/><circle cx="20" cy="160" r="6"/><circle cx="20" cy="320" r="6"/><circle cx="20" cy="420" r="6"/>
+          </g>
+          <circle cx="360" cy="240" r="12" fill="#FFFFFF"/>
+        </svg>
+      </section>
+
+      <!-- 1 What a payout is -->
+      <section class="scene" data-scene="1" data-k="0">
+        <div class="eyebrow">01 <b>What a payout is</b></div>
+        <h2 class="r" data-cue="0">One payout, step by step</h2>
+        <div class="ends r" data-cue="1">
+          <div class="party"><small>Sender</small>U.S. freelance marketplace</div>
+          <div class="amt">$500</div>
+          <div class="party" style="text-align:right"><small>Payee</small>Designer in the Philippines</div>
+        </div>
+        <div class="track r" data-cue="1"><div class="ln"></div><div class="fill" id="fill1"></div><div class="coin" id="coin1"></div></div>
+        <div class="stations">
+          <div class="st r" data-cue="2" data-cur="2"><div class="n">STEP 1</div><h3>KYC</h3><p>“Know Your Customer.” Verify the designer is real and screen them against sanctions lists.</p></div>
+          <div class="st r" data-cue="3" data-cur="3"><div class="n">STEP 2</div><h3>Tax</h3><p>Collect a tax form (for a foreign contractor, typically a W-8BEN) so the platform knows what to report or withhold.</p></div>
+          <div class="st r" data-cue="4" data-cur="4"><div class="n">STEP 3</div><h3>FX</h3><p>Foreign exchange: convert dollars to pesos.</p><div class="fx">USD → PHP<br><span class="muted">spread = market rate − rate given</span></div></div>
+          <div class="st r" data-cue="5" data-cur="5,6"><div class="n">STEP 4</div><h3>Rail</h3><p>The network the money travels on.</p>
+            <div class="opts"><span>Local bank transfer</span><span id="pickRail">Mobile wallet</span><span>Push to debit card</span><span>Stablecoin</span></div></div>
+          <div class="st r" data-cue="7" data-cur="7"><div class="n">STEP 5</div><h3>Delivery</h3><p>Funds land in local currency.</p><div class="done"><span>✓ Paid in PHP</span><span>✓ Payee notified</span><span>✓ Platform books reconciled</span></div></div>
+        </div>
+      </section>
+
+      <!-- 2 Why harder -->
+      <section class="scene" data-scene="2">
+        <div class="eyebrow">02 <b>Why paying out is harder</b></div>
+        <h2 class="r" data-cue="0">Accepting money vs. sending it</h2>
+        <div class="cmp">
+          <div class="hd"></div><div class="hd">Accepting a card payment</div><div class="hd out">Sending a payout</div>
+          <div class="k r" data-cue="1">Credentials</div><div class="r" data-cue="1">Customer brings standardized card details</div><div class="o r" data-cue="2">Sender collects bank or wallet details in each country's format</div>
+          <div class="k r" data-cue="1">Routing</div><div class="r" data-cue="1">One global card network routes it</div><div class="o r" data-cue="2">Many local rails, each with its own rules</div>
+          <div class="k r" data-cue="3">Compliance</div><div class="r" data-cue="3">Focus is on the paying customer</div><div class="o r" data-cue="3">Sender verifies, screens and tax-reports the recipient</div>
+          <div class="k r" data-cue="4">Reversibility</div><div class="r" data-cue="4">Chargebacks let disputes be reversed</div><div class="o r" data-cue="4">Push payments are mostly final</div>
+          <div class="k r" data-cue="5">Liquidity</div><div class="r" data-cue="5">Money flows in to you</div><div class="o r" data-cue="5">Pre-fund the right currency in each market first</div>
+        </div>
+      </section>
+
+      <!-- 3 Customers -->
+      <section class="scene" data-scene="3">
+        <div class="eyebrow">03 <b>Who buys payouts</b></div>
+        <h2 class="r" data-cue="0">Anyone with a supply side to pay</h2>
+        <div class="cust">
+          <div class="r" data-cue="1">E-commerce marketplaces<small>paying sellers</small></div>
+          <div class="r" data-cue="1">Gig &amp; delivery apps<small>paying workers</small></div>
+          <div class="r" data-cue="1">Creator platforms<small>paying creators &amp; musicians</small></div>
+          <div class="r" data-cue="2">Global hiring &amp; payroll<small>paying contractors abroad</small></div>
+          <div class="r" data-cue="2">Insurers<small>settling claims</small></div>
+          <div class="r" data-cue="2">Businesses<small>paying suppliers</small></div>
+        </div>
+        <div class="why">
+          <div class="r" data-cue="3"><b>Supply retention</b><p>Earners go where they get paid fast, cheaply and reliably.</p></div>
+          <div class="r" data-cue="4"><b>A revenue line</b><p>Adyen lets platforms set their own fee for on-demand instant cash-outs.</p></div>
+          <div class="r" data-cue="5"><b>Float</b><p>Balances waiting to be paid out can earn interest.</p></div>
+        </div>
+      </section>
+
+      <!-- 4 Value chain -->
+      <section class="scene" data-scene="4">
+        <div class="eyebrow">04 <b>The value chain</b></div>
+        <h2 class="r" data-cue="0">Who touches the money</h2>
+        <div class="chain">
+          <div class="node r" data-cue="1"><span class="tag">Owns payee</span><h4>Platform</h4><p>Marketplace, gig app, creator site</p></div>
+          <div class="arrow r" data-cue="2"><svg viewBox="0 0 26 14"><path d="M0 7h22M17 2l6 5-6 5" fill="none" stroke="#0E2240" stroke-width="2"/></svg></div>
+          <div class="node hl r" data-cue="2"><span class="tag">Routes &amp; complies</span><h4>Payout orchestrator</h4><p>Onboarding, KYC, tax, picks the rail for each payment</p></div>
+          <div class="arrow r" data-cue="3"><svg viewBox="0 0 26 14"><path d="M0 7h22M17 2l6 5-6 5" fill="none" stroke="#0E2240" stroke-width="2"/></svg></div>
+          <div class="node r" data-cue="3"><span class="tag">Networks</span><h4>Visa Direct · Mastercard Move</h4><p>Push money to cards, accounts and wallets</p></div>
+          <div class="arrow r" data-cue="5"><svg viewBox="0 0 26 14"><path d="M0 7h22M17 2l6 5-6 5" fill="none" stroke="#0E2240" stroke-width="2"/></svg></div>
+          <div class="node r" data-cue="5"><span class="tag">Settle locally</span><h4>Banks &amp; local systems</h4><p>Hold accounts, clear domestic transfers</p></div>
+          <div class="arrow r" data-cue="5"><svg viewBox="0 0 26 14"><path d="M0 7h22M17 2l6 5-6 5" fill="none" stroke="#0E2240" stroke-width="2"/></svg></div>
+          <div class="node r" data-cue="5"><span class="tag">Gets paid</span><h4>Recipient</h4><p>Bank, wallet, card or cash</p></div>
+        </div>
+        <div class="lane r" data-cue="6"><span class="tag">Parallel lane · stablecoin infra</span><p>Converts between ordinary money and dollar-pegged tokens: Bridge (Stripe), BVNK (Mastercard), Circle.</p></div>
+        <div class="stats">
+          <div class="stat r" data-cue="4"><span class="big">~10bn</span><p>Visa Direct transactions in 2024; reaches 195+ countries and territories</p></div>
+          <div class="stat r" data-cue="4"><span class="big">180+</span><p>Countries Mastercard Move pays out to, via bank, wallet, card or cash</p></div>
+        </div>
+      </section>
+
+      <!-- 5 Tier 1 -->
+      <section class="scene" data-scene="5">
+        <div class="eyebrow">05 <b>Landscape · Tier 1 of 4</b></div>
+        <h2 class="r" data-cue="0">Scaled incumbents</h2>
+        <div class="tier1">
+          <div class="co r" data-cue="1"><h4>PayPal<br>(Hyperwallet)</h4><p class="what">Payouts for marketplaces and platforms</p><div class="fact">Bought 2018 for ~$400m</div></div>
+          <div class="co r" data-cue="2"><h4>Payoneer</h4><p class="what">Cross-border accounts for sellers, freelancers, SMBs</p><div class="fact">2025 revenue $1.05bn, first year over $1bn</div></div>
+          <div class="co r" data-cue="3"><h4>Stripe</h4><p class="what">Connect for platforms; Global Payouts to third parties</p><div class="fact">Global Payouts: 50+ countries</div></div>
+          <div class="co r" data-cue="4"><h4>Adyen</h4><p class="what">Adyen for Platforms on its own licensed stack</p><div class="fact">Instant payouts; CashOut fees set by platform</div></div>
+          <div class="co r" data-cue="5"><h4>Wise Platform</h4><p class="what">Wise's cross-border network, licensed to banks and businesses</p><div class="fact">Partners incl. UniCredit, Raiffeisen</div></div>
+        </div>
+      </section>
+
+      <!-- 6 Tiers 2-4 -->
+      <section class="scene" data-scene="6">
+        <div class="eyebrow">06 <b>Landscape · Tiers 2 to 4</b></div>
+        <div class="tiers">
+          <div class="tier r" data-cue="0">
+            <div class="label">Finance automation suite</div>
+            <div class="row"><b>Tipalti</b><span>Payables, payouts, tax and treasury in one product. <em>$8.3bn valuation (2021) · ARR passed $200m (2025)</em></span></div>
+          </div>
+          <div class="tier r" data-cue="2">
+            <div class="label">Specialist payout platforms</div>
+            <div class="row r" data-cue="3"><b>Trolley</b><span>Montréal. Payouts plus tax forms. <em>C$32m Series B, Nov 2024</em></span></div>
+            <div class="row r" data-cue="4"><b>Dots</b><span>San Francisco. One API for bank, wallet and stablecoin payouts. <em>$8.9m Series A, 2026 · $150m+/month</em></span></div>
+            <div class="row r" data-cue="5"><b>MassPay</b><span>Payout orchestration. <em>Integrated Visa Direct, Dec 2025</em></span></div>
+          </div>
+          <div class="tier r" data-cue="6">
+            <div class="label">Cross-border infrastructure</div>
+            <div class="row r" data-cue="7"><b>Nium</b><span>Real-time payments infrastructure. <em>$1.4bn valuation, 2024 (−30%)</em></span></div>
+            <div class="row r" data-cue="7"><b>Thunes</b><span>Network into banks and mobile wallets. <em>$150m Series D, 2025 · 130+ countries</em></span></div>
+            <div class="row r" data-cue="8"><b>Airwallex</b><span>Global accounts and payments. <em>$8bn valuation, Dec 2025</em></span></div>
+            <div class="row r" data-cue="8"><b>Rapyd</b><span>Fintech-as-a-service. <em>Bought PayU GPO for ~$610m, closed 2025</em></span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7 Economics -->
+      <section class="scene" data-scene="7">
+        <div class="eyebrow">07 <b>Economics</b></div>
+        <h2 class="r" data-cue="0">Four ways to make money</h2>
+        <div class="econ">
+          <div class="streams">
+            <div class="stream r" data-cue="1"><b>Transaction fees</b><p>Flat or percentage charge per payout</p></div>
+            <div class="stream r" data-cue="2"><b>FX spread</b><p>Market rate minus the rate the customer gets</p></div>
+            <div class="stream r" data-cue="4"><b>Software fees</b><p>Subscriptions for workflow tools (recurring revenue)</p></div>
+            <div class="stream r" data-cue="5"><b>Float</b><p>Interest on balances before they are withdrawn</p></div>
+          </div>
+          <div class="chartbox">
+            <div class="r" data-cue="6">
+              <div class="cap">Payoneer 2025 revenue: $1.05bn</div>
+              <div class="stack" style="margin-top:10px"><div class="a">$821.2m fees &amp; other</div><div class="b">$231.6m</div></div>
+              <div class="legend" style="margin-top:8px"><span><i style="background:var(--navy)"></i>Revenue ex. interest (+14%)</span><span><i style="background:var(--accent)"></i>Interest income, ~22% (−10%)</span></div>
+            </div>
+            <ul class="drivers r" data-cue="7">
+              <li>Volume on direct connections vs. intermediaries</li>
+              <li>Cross-border and FX mix</li>
+              <li>Compliance automation</li>
+              <li>Fraud losses</li>
+              <li>Interest-rate sensitivity</li>
+            </ul>
+            <div class="footnote r" data-cue="8">Wise FY26: new direct links to domestic payment systems in Brazil and Japan</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8 Trends -->
+      <section class="scene" data-scene="8">
+        <div class="eyebrow">08 <b>Where it's heading</b></div>
+        <h2 class="r" data-cue="0">Five trends</h2>
+        <div class="trends">
+          <div class="trend r" data-cue="1"><span class="n">1</span><b>Instant payouts</b><p>Minutes, not days, and a fee platforms can charge for</p></div>
+          <div class="trend r" data-cue="2"><span class="n">2</span><b>Stablecoins</b><p>GENIUS Act signed July 18, 2025 · Visa Direct pilot: business pays in dollars, recipient gets USDC</p></div>
+          <div class="trend r" data-cue="4"><span class="n">3</span><b>Embedded compliance &amp; tax</b><p>KYC, tax forms, even payroll: Payoneer bought Skuad for $61m (2024)</p></div>
+          <div class="trend r" data-cue="5"><span class="n">4</span><b>AI</b><p>Fraud screening, reconciliation, finance workflows: Tipalti bought Statement (2025)</p></div>
+          <div class="trend r" data-cue="6"><span class="n">5</span><b>Consolidation</b><p>Strategics buying coverage, licences and stablecoin rails</p></div>
+        </div>
+      </section>
+
+      <!-- 9 Deals -->
+      <section class="scene" data-scene="9">
+        <div class="eyebrow">09 <b>M&amp;A and funding</b></div>
+        <h2 class="r" data-cue="0">Disclosed deal values, to scale</h2>
+        <div class="deals">
+          <div class="bars">
+            <div class="bar r" data-cue="4"><div class="lbl">Nuvei → Payoneer<small>Agreed Jun 2026 · $7.40/sh cash</small></div><div class="tr"><div class="fl ac" data-w="100"></div><div class="v" data-x="100">$2.75bn</div></div></div>
+            <div class="bar r" data-cue="2"><div class="lbl">Mastercard → BVNK<small>Agreed Mar 2026 · closed Aug 2026</small></div><div class="tr"><div class="fl ac" data-w="54.5"></div><div class="eo" data-l="54.5" data-w="10.9"></div><div class="v" data-x="65.4">$1.5bn + $0.3bn earn-out</div></div></div>
+            <div class="bar r" data-cue="1"><div class="lbl">Stripe → Bridge<small>Closed Feb 2025</small></div><div class="tr"><div class="fl ac" data-w="40"></div><div class="v" data-x="40">$1.1bn</div></div></div>
+            <div class="bar r" data-cue="5"><div class="lbl">Rapyd → PayU GPO<small>Closed 2025</small></div><div class="tr"><div class="fl" data-w="22.2"></div><div class="v" data-x="22.2">~$610m</div></div></div>
+            <div class="bar r" data-cue="3"><div class="lbl">Circle → Tazapay<small>Agreed Sep 2026 · stock</small></div><div class="tr"><div class="fl ac" data-w="14.5"></div><div class="v" data-x="14.5">~$400m</div></div></div>
+            <div class="bar r" data-cue="5"><div class="lbl">PayPal → Hyperwallet<small>Closed Nov 2018</small></div><div class="tr"><div class="fl" data-w="14.5"></div><div class="v" data-x="14.5">~$400m</div></div></div>
+            <div class="bar r" data-cue="5"><div class="lbl">Payoneer → Skuad<small>Aug 2024</small></div><div class="tr"><div class="fl" data-w="2.2"></div><div class="v" data-x="2.2">$61m</div></div></div>
+            <div class="footnote r" data-cue="1"><span style="color:var(--accent)">■</span> stablecoin-linked &nbsp; ■ traditional payouts / payments</div>
+          </div>
+          <div class="side">
+            <div class="cap r" data-cue="2">Deals that didn't happen</div>
+            <div class="it r" data-cue="2"><b>Coinbase × BVNK</b><span>~$2bn talks ended, Nov 2025</span></div>
+            <div class="it r" data-cue="2"><b>Mastercard × Zerohash</b><span>Zerohash chose to stay independent, Jan 2026</span></div>
+            <div class="cap r" data-cue="6">Private funding</div>
+            <div class="it r" data-cue="6"><b>Airwallex · $8bn</b><span>$330m raise, Dec 2025 (from $6.2bn in May)</span></div>
+            <div class="it r" data-cue="6"><b>Nium · $1.4bn</b><span>2024 round, 30% below prior valuation</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10 Banker lens -->
+      <section class="scene" data-scene="10">
+        <div class="eyebrow">10 <b>The banker's lens</b></div>
+        <h2 class="r" data-cue="0">Build, buy or partner?</h2>
+        <div class="paths">
+          <div class="path r" data-cue="1"><b>Build</b><p>Licences country by country (in the U.S., money transmitter licences state by state), bank partners, compliance teams, years of integrations.</p></div>
+          <div class="path hl r" data-cue="3"><b>Buy</b><p>Buys coverage, licences and teams now. The logic behind Bridge, BVNK and Payoneer.</p></div>
+          <div class="path r" data-cue="4"><b>Partner</b><p>Plug into Stripe, Adyen or a specialist. Fastest, but the economics are shared.</p></div>
+        </div>
+        <div class="value">
+          <div class="cap r" data-cue="5">What makes a payouts asset valuable</div>
+          <div class="r" data-cue="5">Owned licences &amp; direct connections</div>
+          <div class="r" data-cue="5">Sticky platform customers</div>
+          <div class="r" data-cue="5">Durable take rate</div>
+          <div class="r" data-cue="5">Low customer concentration</div>
+          <div class="r" data-cue="5">Clean compliance record</div>
+          <div class="r" data-cue="5">Stablecoin readiness</div>
+          <div class="r" data-cue="5">Recurring software revenue</div>
+          <div class="r" data-cue="5">Rate- and FX-resilient mix</div>
+        </div>
+        <div class="warn r" data-cue="6"><b>Revenue quality check:</b> how much comes from FX and float, which move with markets, versus recurring fees?</div>
+      </section>
+
+      <!-- 11 Recap -->
+      <section class="scene dark" data-scene="11">
+        <div class="eyebrow">11 <b>Recap</b></div>
+        <h2 class="r" data-cue="0">Five things to remember</h2>
+        <div class="recap">
+          <div class="r" data-cue="1"><span class="n">1</span><p>A payout is a chain. <span>KYC → tax → FX → rail → delivery.</span></p></div>
+          <div class="r" data-cue="2"><span class="n">2</span><p>Paying out is harder than accepting. <span>The sender owns compliance, liquidity and fraud risk.</span></p></div>
+          <div class="r" data-cue="3"><span class="n">3</span><p>Fees, FX spread, software and float. <span>Margins hinge on direct connections and rates.</span></p></div>
+          <div class="r" data-cue="4"><span class="n">4</span><p>Stablecoins and instant payouts are the big shifts. <span>Card networks and Stripe are buying in.</span></p></div>
+          <div class="r" data-cue="5"><span class="n">5</span><p>Consolidation is under way. <span>Licences, coverage and recurring revenue earn the premium.</span></p></div>
+        </div>
+      </section>
+
+      <!-- 12 Sources -->
+      <section class="scene" data-scene="12">
+        <div class="eyebrow">Sources <b>Facts checked October 2026 · links also below the player</b></div>
+        <div class="srcs" id="srcs"></div>
+      </section>
+    </div>
+
+    <button class="overlay" id="overlay" aria-label="Play">
+      <span class="pb"><svg viewBox="0 0 24 24"><path d="M5 3l16 9-16 9z" fill="#0E2240"/></svg></span>
+    </button>
+  </div>
+
+  <div class="caption" id="caption" aria-live="polite"><span class="hint">Press play. Turn your sound on: the narration uses your browser's built-in voice.</span></div>
+
+  <div class="controls">
+    <button class="btn" id="playBtn" aria-label="Play"><svg viewBox="0 0 16 16" id="playIcon"><path d="M3 1.5l11 6.5-11 6.5z"/></svg></button>
+    <div class="bar-wrap" id="barWrap" role="slider" tabindex="0" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="prog" id="prog"><div class="done-bar" id="doneBar"></div><div class="knob" id="knob"></div></div>
+    </div>
+    <div class="time" id="time">0:00 / 0:00</div>
+  </div>
+  <p class="note" id="note">Timing is approximate because narration speed depends on your device's voice. If you hear nothing, check that your device isn't muted; the video still runs with captions.</p>
+
+  <div class="below">
+    <h2>Sources</h2>
+    <ol id="srcList"></ol>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ---------- narration: [caption text|spoken text] lets captions and voice differ ----------
+  const SCRIPT = [
+    [ // 0 title
+      "A short guide to the global payouts market: how money gets from platforms to the people they pay, who moves it, and where it's heading.",
+      "Let's start with one payment."
+    ],
+    [ // 1 example
+      "A payout is money a business sends out: to a seller, a worker, a creator or a supplier.",
+      "Picture a U.S. freelance marketplace paying a designer in the Philippines five hundred dollars.",
+      "Step one: [KYC|K Y C], or Know Your Customer. The platform confirms the designer is real and screens them against sanctions lists.",
+      "Step two: tax. A U.S. platform paying a foreign contractor collects a tax form, typically a [W-8BEN|W 8 B E N], so it knows what to report or withhold.",
+      "Step three: [FX|F X], or foreign exchange. Dollars become pesos, and the provider earns a spread between the market rate and the rate it gives.",
+      "Step four: the rail, meaning the network the money travels on. A bank transfer, a mobile wallet, a push to a debit card, or a stablecoin.",
+      "The provider picks on cost, speed and recipient preference. Here, a mobile wallet.",
+      "Step five: delivery. The pesos land, the designer is notified, and the platform's books are reconciled."
+    ],
+    [ // 2 harder
+      "Why is paying out harder than getting paid?",
+      "When you accept a card, the customer brings standard card details and one global network routes it.",
+      "A payout reverses that. The sender collects recipient details in every country's own format, across many local rails.",
+      "The sender also owns compliance on the recipient: identity checks, sanctions screening and tax reporting.",
+      "Most push payments are final. There's no chargeback, the card process for reversing a disputed payment, so money sent to a fraudster is usually gone.",
+      "And the sender must pre-fund the right currency in each market before the money goes out."
+    ],
+    [ // 3 customers
+      "Who buys payouts? Anyone with a supply side to pay.",
+      "Marketplaces paying sellers, gig apps paying workers, creator platforms paying creators.",
+      "Also companies paying contractors abroad, insurers settling claims, and businesses paying suppliers.",
+      "Payouts are strategic because the people being paid are the platform's supply, and supply goes where it gets paid fast and reliably.",
+      "Payouts can be a revenue line too. Adyen lets platforms set their own fee for instant cash-outs.",
+      "And balances waiting to be paid out can earn interest."
+    ],
+    [ // 4 value chain
+      "Now the value chain.",
+      "It starts with the platform, which owns the relationship with the payee.",
+      "Next, the payout orchestrator. It sits on top of many banks and rails, routes each payment, and handles onboarding, compliance and tax.",
+      "Underneath are the networks. Visa Direct and Mastercard Move push money straight to cards, accounts and wallets.",
+      "Visa reported nearly ten billion Visa Direct transactions in 2024, reaching over 195 countries and territories. Mastercard Move pays out to over 180 countries.",
+      "Then banks and local payment systems settle the money domestically, and the recipient is paid.",
+      "Alongside runs a newer lane: stablecoin infrastructure. A stablecoin is a digital token pegged to a currency like the dollar. Bridge, BVNK and Circle convert between stablecoins and ordinary money."
+    ],
+    [ // 5 tier 1
+      "The landscape has four tiers. First, scaled incumbents.",
+      "PayPal bought Hyperwallet in 2018 for about four hundred million dollars.",
+      "Payoneer passed one billion dollars of revenue for the first time in 2025.",
+      "Stripe serves platforms through Connect, and its Global Payouts product pays recipients in more than fifty countries.",
+      "Adyen runs platform payouts, including instant payouts, on its own licensed stack.",
+      "And Wise Platform offers Wise's network to banks, including UniCredit and Raiffeisen."
+    ],
+    [ // 6 tiers 2-4
+      "Second, finance automation suites. Tipalti bundles payouts with payables, tax and treasury.",
+      "It was valued at 8.3 billion dollars in 2021, and passed two hundred million dollars of recurring revenue in 2025.",
+      "Third, specialist payout platforms.",
+      "Trolley, in Montréal, raised a Series B in late 2024.",
+      "Dots raised an 8.9 million dollar Series A in 2026 and says it pays out over 150 million dollars a month.",
+      "MassPay integrated Visa Direct in late 2025.",
+      "Fourth, cross-border infrastructure: the plumbing others build on.",
+      "Nium raised in 2024 at 1.4 billion dollars, thirty percent below its prior round. Thunes raised 150 million dollars in 2025.",
+      "Airwallex was valued at 8 billion dollars in December 2025, and Rapyd bought PayU's global payments business for about 610 million."
+    ],
+    [ // 7 economics
+      "How do payout companies make money? Four ways.",
+      "Transaction fees, charged on each payout.",
+      "[FX|F X] spread, the gap between the market rate and the rate the customer gets.",
+      "On cross-border flows, that's often the biggest line.",
+      "Software fees: subscriptions for workflow tools.",
+      "And float: interest earned on balances before they're withdrawn.",
+      "Float matters. Payoneer's 2025 interest income was 231.6 million dollars, about 22 percent of revenue, and fell 10 percent as rates dropped.",
+      "Margins depend on volume over direct connections, the [FX|F X] mix, compliance automation, fraud losses and rate sensitivity.",
+      "Wise shows the first point: it keeps adding direct links to local payment systems, most recently in Brazil and Japan."
+    ],
+    [ // 8 trends
+      "Five trends are reshaping the market.",
+      "One, instant payouts. Recipients expect money in minutes, and platforms can charge for speed.",
+      "Two, stablecoins. The U.S. GENIUS Act, signed in July 2025, created a federal framework for payment stablecoins.",
+      "Visa is now piloting stablecoin payouts: the business pays dollars, the recipient gets [USDC|U S D C].",
+      "Three, embedded compliance and tax, even payroll, as with Payoneer's 61 million dollar purchase of Skuad.",
+      "Four, [AI|A I], for fraud screening and finance workflows. Tipalti bought the [AI|A I] treasury start-up Statement in 2025.",
+      "Five, consolidation. Which brings us to the deals."
+    ],
+    [ // 9 deals
+      "The last two years have been busy.",
+      "Stablecoin rails drew the strategics. Stripe closed its 1.1 billion dollar purchase of Bridge in February 2025.",
+      "After Coinbase's talks with BVNK ended, Mastercard agreed to buy it for 1.5 billion dollars plus up to 300 million in earn-outs, closing in August 2026.",
+      "In September 2026, Circle agreed to buy Tazapay for about 400 million dollars in stock.",
+      "The headline deal is Nuvei's agreement to buy Payoneer for 2.75 billion dollars in cash: 7 dollars 40 a share, about a 44 percent premium.",
+      "Earlier deals set the pattern: PayPal and Hyperwallet, and Rapyd and PayU.",
+      "Private funding is uneven. Airwallex climbed to 8 billion dollars, while Nium took a lower valuation."
+    ],
+    [ // 10 banker
+      "So how should a banker think about this?",
+      "Start with build versus buy. Building means licences, bank partners, compliance teams and years of integrations.",
+      "In the U.S., a money transmitter licence, the permission to move money for others, is granted state by state.",
+      "That's why strategics buy: the deals bought coverage, licences and teams.",
+      "Partnering is the third path: plug into Stripe, Adyen or a specialist, and share the economics.",
+      "Valuable assets have owned licences and direct connections, sticky customers, a durable take rate, meaning revenue as a share of volume, low concentration, and a clean compliance record.",
+      "And check revenue quality: how much is [FX|F X] and float, which move with markets, versus recurring fees."
+    ],
+    [ // 11 recap
+      "Five things to remember.",
+      "One. A payout is a chain: identity, tax, [FX|F X], rail and delivery.",
+      "Two. Paying out is harder than accepting, because the sender owns compliance, liquidity and fraud risk.",
+      "Three. Revenue comes from fees, [FX|F X], software and float.",
+      "Four. Stablecoins and instant payouts are the big shifts, and networks and Stripe are buying in.",
+      "Five. Consolidation is under way, and licences, coverage and recurring revenue earn the premium."
+    ],
+    [ // 12 sources
+      "Sources are on screen and below the player. Thanks for watching."
+    ]
+  ];
+
+  const SOURCES = [
+    ["PayPal Form 10-K FY2018 (Hyperwallet, ~$399m, closed Nov 2018)", "https://www.sec.gov/Archives/edgar/data/1633917/000163391719000043/pypl201810-k.htm"],
+    ["FinTech Global: PayPal acquires Hyperwallet in $400m cash deal", "https://fintech.global/2018/06/20/paypal-acquires-hyperwallet-in-400m-cash-deal/"],
+    ["Payoneer: Q4 and full year 2025 results", "https://www.payoneer.com/press/payoneer-reports-fourth-quarter-and-full-year-2025-financial-results"],
+    ["Stripe: Global Payouts announcement", "https://stripe.com/gb/blog/global-payouts-a-new-way-to-send-money-directly-to-third-parties"],
+    ["The Block: Stripe acquires Bridge for $1.1bn", "https://www.theblock.co/post/322144/stripe-acquires-stablecoin-platform-bridge-for-1-1-billion-in-cryptos-largest-acquisition-techcrunch"],
+    ["Fintech Futures: Stripe acquires Privy", "https://www.fintechfutures.com/m-a/stripe-continues-crypto-push-with-privy-acquisition"],
+    ["Adyen for Platforms", "https://www.adyen.com/landing/platform-payments"],
+    ["Adyen: CashOut and monetizing payouts", "https://www.adyen.com/the-latest/give-users-more-flexibility-and-monetize-payouts-with-cashout"],
+    ["Wise Group: Full Year 2026 results", "https://www.investegate.co.uk/announcement/rns/wise-class-a--wise/wise-fy26-results/9637901"],
+    ["Tipalti: $270m Series F at $8.3bn", "https://tipalti.com/press/series-f-pr/"],
+    ["Tipalti: $200m growth financing, ARR over $200m", "https://tipalti.com/press/tipalti-growth-financing-ai-innovation/"],
+    ["Tipalti acquires Statement", "https://tipalti.com/press/tipalti-acquires-statement/"],
+    ["BetaKit: Trolley C$32m Series B", "https://betakit.com/trolley-secures-32-million-cad-series-b-to-expand-payout-platforms-global-reach/"],
+    ["FinTech Global: Dots $8.9m Series A", "https://fintech.global/2026/02/27/global-payout-platform-dots-secures-8-9m-series-a/"],
+    ["Business Wire: MassPay integrates Visa Direct", "https://www.businesswire.com/news/home/20251215312126/en/MassPay-Integrates-Visa-Direct-for-Global-B2B-Instant-Payout-Solutions-Enablement"],
+    ["Fintech Futures: Nium $50m Series E", "https://fintechfutures.com/?p=15349488"],
+    ["TechBullion: Nium valuation down 30%", "https://techbullion.com/fintech-firm-nium-reduces-valuation-by-30-in-new-funding-round/"],
+    ["FinTech Global: Thunes $150m Series D", "https://fintech.global/?p=198607"],
+    ["Business Wire: Airwallex $300m at $6.2bn", "https://www.businesswire.com/news/home/20250521819845/en/Airwallex-Raises-US300-Million-at-a-US6.2-Billion-Valuation-to-Build-the-Future-of-Global-Banking"],
+    ["Bloomberg Government: Airwallex at $8bn valuation", "https://news.bgov.com/private-equity/payments-startup-airwallex-raises-money-at-8-billion-valuation"],
+    ["Electronic Payments International: Rapyd buys PayU GPO for $610m", "https://www.electronicpaymentsinternational.com/newsletters/rapyd-payu-transaction-610-million-dollars"],
+    ["Crowdfund Insider: Rapyd completes PayU GPO deal", "https://www.crowdfundinsider.com/2025/03/237430-fintech-as-a-service-platform-rapyd-acquires-payu-global-payment-organization-gpo/"],
+    ["FXC Intelligence: Visa Direct at Visa Investor Day", "https://fxcintel.com/research/analysis/visa-direct-investor-day-feb-25"],
+    ["Visa Form 10-K FY2025", "https://www.sec.gov/Archives/edgar/data/1403161/000140316125000089/v-20250930.htm"],
+    ["Mastercard Move", "https://b2b.mastercard.com/move"],
+    ["Visa: Visa Direct stablecoin payouts pilot", "https://investor.visa.com/news/news-details/2025/Visa-Direct-Stablecoin-Payouts-Pilot-Speeds-Up-Access-to-Funds-for-Creators--Gig-Workers/"],
+    ["Deloitte DART: GENIUS Act signed into law", "https://dart.deloitte.com/USDART/home/news/all-news/2025/jul/trump-signs-genius-act"],
+    ["TechCrunch: Payoneer buys Skuad for $61m", "https://techcrunch.com/2024/08/07/payoneer-is-buying-5-year-old-global-payroll-startup-skaud-for-61m-cash"],
+    ["The Block: Coinbase scuttles BVNK deal", "https://www.theblock.co/post/378442/coinbase-scuttles-2-billion-deal-acquire-stablecoin-startup-bvnk"],
+    ["Mastercard Form 10-Q, Q2 2026 (BVNK terms)", "https://www.sec.gov/Archives/edgar/data/0001141391/000114139126000083/ma-20260630.htm"],
+    ["The Block: Mastercard completes BVNK acquisition", "https://theblock.co/post/410521/mastercard-completes-bvnk-acquisition"],
+    ["Payment Expert: Zerohash stays independent", "https://paymentexpert.com/2026/01/21/mastercard-zerohas-investment-reports/"],
+    ["Circle Form 8-K: agreement to acquire Tazapay", "https://www.sec.gov/Archives/edgar/data/0001876042/000187604226000267/final_sept82026announcem.htm"],
+    ["Banking Exchange: Nuvei strikes $2.75bn deal for Payoneer", "https://www.bankingexchange.com/news-feed/item/10649-nuvei-strikes-2-75bn-deal-for-payoneer?Itemid=604"],
+    ["Simpson Thacher: Nuvei to acquire Payoneer for $2.75bn", "https://www.stblaw.com/about-us/news/view/2026/06/15/nuvei-to-acquire-payoneer-for-$2.75-billion"]
+  ];
+
+  // ---------- sources render ----------
+  const srcs = document.getElementById("srcs"), list = document.getElementById("srcList");
+  SOURCES.forEach(([t, u], i) => {
+    const p = document.createElement("p");
+    p.innerHTML = "<b>" + (i + 1) + ".</b> ";
+    const a = document.createElement("a"); a.href = u; a.target = "_blank"; a.rel = "noopener"; a.textContent = t;
+    p.appendChild(a); srcs.appendChild(p);
+    const li = document.createElement("li");
+    const a2 = a.cloneNode(true); li.appendChild(a2); list.appendChild(li);
+  });
+
+  // ---------- cue list ----------
+  const parse = (s, which) => s.replace(/\[([^|\]]+)\|([^\]]+)\]/g, (_, show, say) => which === "show" ? show : say);
+  const cues = [];
+  SCRIPT.forEach((lines, sc) => lines.forEach((line, k) => {
+    const show = parse(line, "show"), say = parse(line, "say");
+    const words = say.split(/\s+/).filter(Boolean).length;
+    cues.push({ sc, k, show, say, est: Math.max(2, words / 2.75 + 0.45) });
+  }));
+  const cum = [0]; cues.forEach(c => cum.push(cum[cum.length - 1] + c.est));
+  const TOTAL = cum[cum.length - 1];
+
+  // ---------- DOM ----------
+  const scenes = [...document.querySelectorAll(".scene")];
+  const caption = document.getElementById("caption");
+  const playBtn = document.getElementById("playBtn"), playIcon = document.getElementById("playIcon");
+  const overlay = document.getElementById("overlay");
+  const doneBar = document.getElementById("doneBar"), knob = document.getElementById("knob");
+  const barWrap = document.getElementById("barWrap"), timeEl = document.getElementById("time");
+  const prog = document.getElementById("prog");
+  const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+
+  // scene tick marks on the progress bar
+  SCRIPT.forEach((_, sc) => {
+    if (sc === 0) return;
+    const i = cues.findIndex(c => c.sc === sc);
+    const t = document.createElement("div"); t.className = "tick"; t.style.left = (cum[i] / TOTAL * 100) + "%"; prog.appendChild(t);
+  });
+
+  // scale the 1280x720 canvas to the frame
+  const frame = document.getElementById("frame"), canvas = document.getElementById("canvas");
+  const fit = () => { canvas.style.transform = "scale(" + (frame.clientWidth / 1280) + ")"; };
+  fit(); (window.ResizeObserver ? new ResizeObserver(fit).observe(frame) : window.addEventListener("resize", fit));
+
+  // ---------- render a cue ----------
+  const STATION_POS = { 2: 10, 3: 30, 4: 50, 5: 70, 6: 70, 7: 100 };
+  function render(i) {
+    const c = cues[i];
+    scenes.forEach((s, n) => s.classList.toggle("active", n === c.sc));
+    const s = scenes[c.sc];
+    s.querySelectorAll("[data-cue]").forEach(el => el.classList.toggle("on", +el.dataset.cue <= c.k));
+    s.querySelectorAll("[data-cur]").forEach(el => el.classList.toggle("cur", el.dataset.cur.split(",").map(Number).includes(c.k)));
+    if (c.sc === 1) {
+      let pos = 0; for (const k in STATION_POS) if (c.k >= +k) pos = STATION_POS[k];
+      document.getElementById("coin1").style.left = pos + "%";
+      document.getElementById("fill1").style.width = pos + "%";
+      document.getElementById("pickRail").classList.toggle("pick", c.k >= 6);
+    }
+    if (c.sc === 9) {
+      s.querySelectorAll(".bar").forEach(b => {
+        const on = b.classList.contains("on");
+        const fl = b.querySelector(".fl"), v = b.querySelector(".v"), eo = b.querySelector(".eo");
+        const w = on ? +fl.dataset.w : 0;
+        fl.style.width = (w * 0.62) + "%";
+        if (eo) { eo.style.left = (+eo.dataset.l * 0.62) + "%"; eo.style.width = on ? (+eo.dataset.w * 0.62) + "%" : "0"; }
+        v.style.left = "calc(" + ((on ? +v.dataset.x : 0) * 0.62) + "% + 10px)";
+      });
+    }
+    caption.textContent = c.show;
+  }
+
+  // ---------- playback engine ----------
+  const synth = ("speechSynthesis" in window) ? window.speechSynthesis : null;
+  let voice = null;
+  function pickVoice() {
+    if (!synth) return;
+    const vs = synth.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang));
+    const prefs = [/Google US English/i, /Samantha/i, /Aria/i, /Jenny/i, /Guy/i, /Google UK English Female/i, /Daniel/i, /Karen/i, /en-US/i];
+    for (const p of prefs) { const v = vs.find(v => p.test(v.name) || p.test(v.lang)); if (v) { voice = v; return; } }
+    voice = vs[0] || null;
+  }
+  if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
+
+  let idx = 0, playing = false, finished = false, token = 0, cueStart = 0, timers = [], keep = [];
+  const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
+
+  function playCue(i) {
+    const my = ++token; clearTimers();
+    idx = i; render(i); cueStart = performance.now();
+    const c = cues[i];
+    const advance = () => { if (my !== token) return; next(); };
+    if (synth) {
+      synth.cancel();
+      timers.push(setTimeout(() => {
+        if (my !== token) return;
+        const u = new SpeechSynthesisUtterance(c.say);
+        if (voice) u.voice = voice;
+        u.lang = voice ? voice.lang : "en-US";
+        u.rate = 1; u.pitch = 1;
+        let spoke = false;
+        u.onstart = () => { spoke = true; };
+        u.onend = () => timers.push(setTimeout(advance, 250));
+        u.onerror = e => { if (e.error === "interrupted" || e.error === "canceled") return; fallback(my, c); };
+        keep = [u]; // hold a reference so the utterance isn't garbage-collected
+        synth.speak(u);
+        // if the voice never starts (muted engine, blocked), fall back to timed captions
+        timers.push(setTimeout(() => { if (my === token && !spoke && !synth.speaking) fallback(my, c); }, 2500));
+        // watchdog in case onend never fires
+        timers.push(setTimeout(advance, (c.est * 2.4 + 4) * 1000));
+      }, 80));
+    } else {
+      timers.push(setTimeout(advance, c.est * 1000));
+    }
+  }
+  function fallback(my, c) {
+    if (my !== token) return;
+    clearTimers();
+    const left = Math.max(400, c.est * 1000 - (performance.now() - cueStart));
+    timers.push(setTimeout(() => { if (my === token) next(); }, left));
+  }
+  function next() {
+    if (idx + 1 < cues.length) playCue(idx + 1);
+    else { stop(true); }
+  }
+  function setIcon() {
+    playIcon.innerHTML = playing ? '<path d="M3 1.5h3.5v13H3zM9.5 1.5H13v13H9.5z"/>' : (finished ? '<path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.7l1.5.5A4 4 0 1 0 8 4v2L4.8 3.2 8 .5z"/>' : '<path d="M3 1.5l11 6.5-11 6.5z"/>');
+    playBtn.setAttribute("aria-label", playing ? "Pause" : (finished ? "Replay" : "Play"));
+  }
+  function play() {
+    if (finished) { finished = false; idx = 0; }
+    playing = true; overlay.hidden = true; setIcon(); playCue(idx);
+  }
+  function pause() {
+    playing = false; token++; clearTimers(); if (synth) synth.cancel(); setIcon();
+  }
+  function stop(done) {
+    pause(); finished = !!done; if (done) idx = cues.length - 1; setIcon();
+  }
+  playBtn.addEventListener("click", () => playing ? pause() : play());
+  overlay.addEventListener("click", play);
+  document.addEventListener("keydown", e => {
+    if (e.code === "Space" && e.target === document.body) { e.preventDefault(); playing ? pause() : play(); }
+  });
+
+  // ---------- seeking ----------
+  function seekTo(frac) {
+    const t = Math.min(Math.max(frac, 0), 0.9999) * TOTAL;
+    let i = cues.length - 1; for (let n = 0; n < cues.length; n++) if (t < cum[n + 1]) { i = n; break; }
+    finished = false;
+    if (playing) playCue(i); else { idx = i; render(i); cueStart = performance.now(); setIcon(); }
+  }
+  let dragging = false;
+  const fracOf = e => { const r = barWrap.getBoundingClientRect(); return (e.clientX - r.left) / r.width; };
+  barWrap.addEventListener("pointerdown", e => { dragging = true; barWrap.setPointerCapture(e.pointerId); seekTo(fracOf(e)); });
+  barWrap.addEventListener("pointerup", () => { dragging = false; });
+  barWrap.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight") { e.preventDefault(); seekTo((cum[Math.min(idx + 1, cues.length - 1)] + 0.01) / TOTAL); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); seekTo((cum[Math.max(idx - 1, 0)] + 0.01) / TOTAL); }
+  });
+
+  // ---------- progress loop ----------
+  function tick() {
+    let t;
+    if (finished) t = TOTAL;
+    else {
+      const el = playing ? Math.min((performance.now() - cueStart) / 1000, cues[idx].est * 0.98) : 0;
+      t = cum[idx] + el;
+    }
+    const f = t / TOTAL * 100;
+    doneBar.style.width = f + "%"; knob.style.left = f + "%";
+    barWrap.setAttribute("aria-valuenow", Math.round(f));
+    timeEl.textContent = fmt(t) + " / " + fmt(TOTAL);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+  timeEl.textContent = "0:00 / " + fmt(TOTAL);
+  if (!synth) document.getElementById("note").textContent = "This browser has no built-in speech voice, so the video plays with captions only.";
+  window.addEventListener("pagehide", () => { if (synth) synth.cancel(); });
+})();
+</script>
+</body>
+</html>
