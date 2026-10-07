@@ -220,6 +220,9 @@ h2 { font-family: var(--display); font-weight: 500; font-size: 50px; line-height
 .prog .done-bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--paper); border-radius: 3px; width: 0; }
 .prog .knob { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--paper); left: 0; }
 .prog .tick { position: absolute; top: -2px; width: 2px; height: 9px; background: var(--navy); }
+.voice { flex: 0 1 auto; min-width: 0; max-width: 220px; height: 34px; padding: 0 8px; border-radius: 6px; border: 1.5px solid var(--navy-3); background: var(--navy-2); color: var(--paper); font-family: var(--sans); font-size: 13px; }
+.voice:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 520px) { .controls { flex-wrap: wrap; } .voice { max-width: 100%; flex: 1 1 100%; } }
 .time { flex: none; font-family: var(--mono); font-size: 13px; color: var(--on-navy-muted); font-variant-numeric: tabular-nums; }
 .note { font-size: 13px; color: var(--on-navy-muted); line-height: 1.5; margin: 0; }
 .below { margin-top: 26px; border-top: 1px solid var(--navy-3); padding-top: 18px; }
@@ -522,6 +525,7 @@ h2 { font-size: 56px; }
       <div class="prog" id="prog"><div class="done-bar" id="doneBar"></div><div class="knob" id="knob"></div></div>
     </div>
     <div class="time" id="time">0:00 / 0:00</div>
+    <select class="voice" id="voiceSel" aria-label="Narrator voice" hidden></select>
   </div>
   <p class="note" id="note">Timing is approximate because narration speed depends on your device's voice. If you hear nothing, check that your device isn't muted; the video still runs with captions.</p>
 
@@ -699,7 +703,7 @@ h2 { font-size: 56px; }
   SCRIPT.forEach((lines, sc) => lines.forEach((line, k) => {
     const show = parse(line, "show"), say = parse(line, "say");
     const words = say.split(/\s+/).filter(Boolean).length;
-    cues.push({ sc, k, show, say, est: Math.max(2, words / 2.75 + 0.45) });
+    cues.push({ sc, k, show, say, est: Math.max(2, words / 2.6 + 0.45) });
   }));
   const cum = [0]; cues.forEach(c => cum.push(cum[cum.length - 1] + c.est));
   const TOTAL = cum[cum.length - 1];
@@ -756,13 +760,44 @@ h2 { font-size: 56px; }
   // ---------- playback engine ----------
   const synth = ("speechSynthesis" in window) ? window.speechSynthesis : null;
   let voice = null;
+  const voiceSel = document.getElementById("voiceSel");
+  // Rank voices so the calmest, most natural-sounding one on this device wins by default.
+  function scoreVoice(v) {
+    const n = v.name;
+    let s = 0;
+    if (/Natural|Neural|Premium|Enhanced|Siri/i.test(n)) s += 100;
+    if (/\b(Ava|Emma|Jenny|Aria|Sonia|Libby|Serena|Allison|Zoe|Moira|Fiona|Tessa|Karen|Samantha|Michelle|Andrew|Brian|Ryan)\b/i.test(n)) s += 30;
+    if (/Google UK English Female/i.test(n)) s += 45;
+    if (/Google US English/i.test(n)) s += 35;
+    if (/^en[-_](US|GB)/i.test(v.lang)) s += 10;
+    if (!v.localService) s += 5;
+    if (/Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Eddy|Flo|Fred|Good News|Grandma|Grandpa|Jester|Junior|Kathy|Organ|Ralph|Reed|Rocko|Sandy|Shelley|Superstar|Trinoids|Whisper|Wobble|Zarvox|espeak|eSpeak/i.test(n)) s -= 300;
+    return s;
+  }
+  function englishVoices() {
+    return synth.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang)).sort((a, b) => scoreVoice(b) - scoreVoice(a));
+  }
   function pickVoice() {
     if (!synth) return;
-    const vs = synth.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang));
-    const prefs = [/Google US English/i, /Samantha/i, /Aria/i, /Jenny/i, /Guy/i, /Google UK English Female/i, /Daniel/i, /Karen/i, /en-US/i];
-    for (const p of prefs) { const v = vs.find(v => p.test(v.name) || p.test(v.lang)); if (v) { voice = v; return; } }
-    voice = vs[0] || null;
+    const vs = englishVoices();
+    if (!vs.length) return;
+    let saved = null;
+    try { saved = localStorage.getItem("payoutsVoice"); } catch (e) {}
+    voice = vs.find(v => v.name === saved) || vs[0];
+    voiceSel.innerHTML = "";
+    vs.forEach(v => {
+      const o = document.createElement("option");
+      o.value = v.name; o.textContent = v.name.replace(/^Microsoft /, "").replace(/ - English.*$/, "") + " (" + v.lang + ")";
+      voiceSel.appendChild(o);
+    });
+    voiceSel.value = voice.name;
+    voiceSel.hidden = false;
   }
+  voiceSel.addEventListener("change", () => {
+    voice = englishVoices().find(v => v.name === voiceSel.value) || voice;
+    try { localStorage.setItem("payoutsVoice", voice.name); } catch (e) {}
+    if (playing) playCue(idx);
+  });
   if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
 
   let idx = 0, playing = false, finished = false, token = 0, cueStart = 0, timers = [], keep = [];
@@ -780,7 +815,7 @@ h2 { font-size: 56px; }
         const u = new SpeechSynthesisUtterance(c.say);
         if (voice) u.voice = voice;
         u.lang = voice ? voice.lang : "en-US";
-        u.rate = 1; u.pitch = 1;
+        u.rate = 0.93; u.pitch = 0.96; // slightly slower and lower for a calmer read
         let spoke = false;
         u.onstart = () => { spoke = true; };
         u.onend = () => timers.push(setTimeout(advance, 250));
