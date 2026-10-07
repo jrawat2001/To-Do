@@ -220,6 +220,20 @@ h2 { font-family: var(--display); font-weight: 500; font-size: 50px; line-height
 .prog .done-bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--paper); border-radius: 3px; width: 0; }
 .prog .knob { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--paper); left: 0; }
 .prog .tick { position: absolute; top: -2px; width: 2px; height: 9px; background: var(--navy); }
+.player { display: flex; flex-direction: column; gap: 14px; }
+/* full screen: real Fullscreen API where allowed, otherwise the same layout pinned over the page */
+.player.is-full { position: fixed; inset: 0; z-index: 50; background: #050D1A; gap: 0; justify-content: center; align-items: center;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+.player.is-full .frame { background: #050D1A; width: min(100vw, calc(100vh * 16 / 9)); width: min(100%, calc(100dvh * 16 / 9)); border-radius: 0; box-shadow: none; flex: none; }
+.player.is-full .caption { position: absolute; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(92%, 1000px);
+  min-height: 0; padding: 8px 16px; border-radius: 6px; background: rgba(5, 13, 26, .82); font-size: clamp(13px, 1.8vw, 26px); line-height: 1.35; transition: bottom .3s; }
+.player.is-full.idle .caption { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+.player.is-full .caption:empty, .player.is-full .caption .hint { display: none; }
+.player.is-full .controls { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(transparent, rgba(5, 13, 26, .9)); transition: opacity .3s; }
+.player.is-full.idle .controls { opacity: 0; pointer-events: none; }
+.player.is-full.idle { cursor: none; }
+body.no-scroll { overflow: hidden; }
 .time { flex: none; font-family: var(--mono); font-size: 13px; color: var(--on-navy-muted); font-variant-numeric: tabular-nums; }
 .note { font-size: 13px; color: var(--on-navy-muted); line-height: 1.5; margin: 0; }
 .below { margin-top: 26px; border-top: 1px solid var(--navy-3); padding-top: 18px; }
@@ -262,6 +276,7 @@ h2 { font-size: 56px; }
     <span>Narrated · about 9 minutes · verified to Oct 2026</span>
   </div>
 
+  <div class="player" id="player">
   <div class="frame" id="frame">
     <div class="canvas" id="canvas">
 
@@ -522,6 +537,8 @@ h2 { font-size: 56px; }
       <div class="prog" id="prog"><div class="done-bar" id="doneBar"></div><div class="knob" id="knob"></div></div>
     </div>
     <div class="time" id="time">0:00 / 0:00</div>
+    <button class="btn" id="fsBtn" aria-label="Full screen"><svg viewBox="0 0 16 16" id="fsIcon"><path d="M1 1h5v2H3v3H1zM10 1h5v5h-2V3h-3zM1 10h2v3h3v2H1zM13 10h2v5h-5v-2h3z"/></svg></button>
+  </div>
   </div>
   <p class="note" id="note">Narration is pre-recorded with Kokoro, an open-source neural text-to-speech model (voice: Heart). If you hear nothing, check that your device isn't muted.</p>
 
@@ -788,6 +805,50 @@ h2 { font-size: 56px; }
     if (e.key === "ArrowRight") { e.preventDefault(); seekTime(cum[Math.min(i + 1, cues.length - 1)]); }
     if (e.key === "ArrowLeft") { e.preventDefault(); seekTime(cum[Math.max(i - 1, 0)]); }
   });
+
+  // ---------- full screen ----------
+  const player = document.getElementById("player"), fsBtn = document.getElementById("fsBtn"), fsIcon = document.getElementById("fsIcon");
+  const ENTER = '<path d="M1 1h5v2H3v3H1zM10 1h5v5h-2V3h-3zM1 10h2v3h3v2H1zM13 10h2v5h-5v-2h3z"/>';
+  const EXIT = '<path d="M4 1h2v5H1V4h3zM10 1h2v3h3v2h-5zM1 10h5v5H4v-3H1zM10 10h5v2h-3v3h-2z"/>';
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  let pseudo = false, idleTimer = null;
+  const isFull = () => !!fsEl() || pseudo;
+  function syncFull() {
+    const on = isFull();
+    player.classList.toggle("is-full", on);
+    document.body.classList.toggle("no-scroll", on);
+    fsIcon.innerHTML = on ? EXIT : ENTER;
+    fsBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
+    wake();
+  }
+  async function enterFull() {
+    const req = player.requestFullscreen || player.webkitRequestFullscreen;
+    try {
+      if (!req) throw new Error("unsupported");
+      await req.call(player);
+      try { await screen.orientation.lock("landscape"); } catch (e) {}
+    } catch (e) { pseudo = true; } // phones and embedded viewers: fill the window instead
+    syncFull();
+  }
+  function exitFull() {
+    if (pseudo) { pseudo = false; syncFull(); return; }
+    const ex = document.exitFullscreen || document.webkitExitFullscreen;
+    if (ex) ex.call(document).catch(() => {});
+  }
+  fsBtn.addEventListener("click", () => isFull() ? exitFull() : enterFull());
+  document.addEventListener("fullscreenchange", syncFull);
+  document.addEventListener("webkitfullscreenchange", syncFull);
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && pseudo) exitFull();
+    if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey && e.target.tagName !== "INPUT") isFull() ? exitFull() : enterFull();
+  });
+  // in full screen, hide the controls after a few seconds of playback; any touch or mouse move brings them back
+  function wake() {
+    player.classList.remove("idle"); clearTimeout(idleTimer);
+    if (isFull() && !audio.paused) idleTimer = setTimeout(() => player.classList.add("idle"), 3000);
+  }
+  ["pointermove", "pointerdown", "keydown"].forEach(ev => player.addEventListener(ev, wake));
+  ["play", "pause"].forEach(ev => audio.addEventListener(ev, wake));
 
   // ---------- progress loop: captions and visuals follow the audio clock ----------
   function tick() {
